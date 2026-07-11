@@ -34,6 +34,15 @@ const User = sequelize.define("User", {
   },
   profileImage: {
     type: DataTypes.STRING
+  },
+  resetCode: {
+    type: DataTypes.STRING
+  },
+  resetCodeExpires: {
+    type: DataTypes.DATE
+  },
+  statusReason: {
+    type: DataTypes.TEXT
   }
 });
 

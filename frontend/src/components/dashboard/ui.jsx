@@ -45,7 +45,7 @@ export function Panel({ title, action, children, className }) {
   );
 }
 
-export function LoadingState({ label = "Loading Waste2Value data..." }) {
+export function LoadingState({ label = "Loading Waste-to-Value data..." }) {
   return (
     <div className="rounded-lg border border-line bg-white p-6 text-sm font-bold text-muted shadow-subtle">
       {label}
@@ -137,7 +137,9 @@ export function ProgressBar({ label, value, max = 100 }) {
   );
 }
 
-export function DataTable({ columns, rows }) {
+export function DataTable({ columns, rows, selectedId, onSelectRow }) {
+  const selectable = typeof onSelectRow === "function";
+
   return (
     <div className="overflow-x-auto">
       <table className="w-full min-w-[660px] border-collapse text-left text-sm">
@@ -149,17 +151,29 @@ export function DataTable({ columns, rows }) {
           </tr>
         </thead>
         <tbody>
-          {rows.map((row, rowIndex) => (
-            <tr key={`${rowIndex}-${Object.values(row)[0]}`} className="border-b border-slate-100 last:border-0">
-              {columns.map((column) => (
-                <td key={column.key} className="py-4 pr-6 font-semibold text-ink">
-                  {row[column.key]}
-                </td>
-              ))}
-            </tr>
-          ))}
+          {rows.map((row, rowIndex) => {
+            const isSelected = selectable && row.id !== undefined && row.id === selectedId;
+            return (
+              <tr
+                key={`${rowIndex}-${Object.values(row)[0]}`}
+                onClick={selectable ? () => onSelectRow(row) : undefined}
+                className={cx(
+                  "border-b border-slate-100 last:border-0",
+                  selectable && "cursor-pointer",
+                  isSelected && "bg-brand-50"
+                )}
+              >
+                {columns.map((column) => (
+                  <td key={column.key} className="py-4 pr-6 font-semibold text-ink">
+                    {row[column.key]}
+                  </td>
+                ))}
+              </tr>
+            );
+          })}
         </tbody>
       </table>
+      {selectable && <p className="mt-3 text-xs font-semibold text-muted">Click a row to select it, then use a Quick Action.</p>}
     </div>
   );
 }
@@ -253,6 +267,60 @@ export function MaterialRow({ material, showMatch = true }) {
         <p className="mt-1 text-xs font-semibold text-muted">{material.location} - {material.quantity} - {material.price}</p>
       </div>
       {showMatch ? <StatusPill>{material.match}% match</StatusPill> : <StatusPill tone={material.status === "Requested" ? "orange" : "green"}>{material.status}</StatusPill>}
+    </div>
+  );
+}
+
+export function ActionModal({ open, title, details = [], noteRequired = false, noteLabel = "Note (optional)", notePlaceholder, confirmLabel = "Confirm", onConfirm, onCancel, readOnly = false }) {
+  if (!open) return null;
+
+  function handleSubmit(event) {
+    event.preventDefault();
+    const note = new FormData(event.target).get("note") || "";
+    if (noteRequired && !note.trim()) return;
+    onConfirm(note.trim());
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={onCancel}>
+      <div
+        className="max-h-[90vh] w-full max-w-[560px] overflow-y-auto rounded-lg bg-white p-8 shadow-subtle"
+        onClick={(event) => event.stopPropagation()}
+      >
+        <h2 className="text-xl font-extrabold text-ink">{title}</h2>
+
+        <dl className="mt-6 grid gap-4 border-t border-line pt-6">
+          {details.map(([label, value]) => (
+            <div key={label} className="grid grid-cols-[160px_1fr] gap-4">
+              <dt className="text-xs font-extrabold uppercase tracking-wide text-muted">{label}</dt>
+              <dd className="text-sm font-semibold text-ink">{value ?? "-"}</dd>
+            </div>
+          ))}
+        </dl>
+
+        {readOnly ? (
+          <div className="mt-8 flex justify-end">
+            <ActionButton variant="outline" onClick={onCancel}>Close</ActionButton>
+          </div>
+        ) : (
+          <form className="mt-8 grid gap-4" onSubmit={handleSubmit}>
+            <label className="grid gap-2">
+              <span className="text-xs font-extrabold text-muted">{noteLabel}{noteRequired ? " (required)" : ""}</span>
+              <textarea
+                name="note"
+                required={noteRequired}
+                rows={3}
+                className="rounded-lg border border-line bg-slate-50 px-4 py-3 text-sm outline-none focus:border-brand-500"
+                placeholder={notePlaceholder || (noteRequired ? "Explain why, so there is a record of this decision..." : "Add a note about this decision...")}
+              />
+            </label>
+            <div className="flex justify-end gap-3">
+              <ActionButton type="button" variant="outline" onClick={onCancel}>Cancel</ActionButton>
+              <ActionButton type="submit">{confirmLabel}</ActionButton>
+            </div>
+          </form>
+        )}
+      </div>
     </div>
   );
 }

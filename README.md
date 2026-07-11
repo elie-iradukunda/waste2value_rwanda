@@ -1,8 +1,8 @@
-# Waste2Value Rwanda Platform
+# Waste-to-Value Rwanda Platform
 
 Full-stack circular economy platform built with React, Tailwind CSS v3, Node.js, Express, MySQL and Sequelize.
 
-Waste2Value Rwanda supports an academic presentation workflow for industrial waste exchange:
+Waste-to-Value Rwanda supports an academic presentation workflow for industrial waste exchange:
 
 - waste producer material listing and admin approval;
 - buyer marketplace search, smart matching and material requests;
@@ -33,26 +33,27 @@ All demo users use password `demo123`.
 
 | Role | Email |
 | --- | --- |
-| Admin | `admin@waste2value.rw` |
-| Waste Producer | `industry@waste2value.rw` |
-| Recycler / SME | `buyer@waste2value.rw` |
-| Transport Provider | `transport@waste2value.rw` |
-| COPED / Waste Operator | `regulator@waste2value.rw` |
+| Admin | `admin@wastetovalue.rw` |
+| Waste Producer | `industry@wastetovalue.rw` |
+| Recycler / SME | `buyer@wastetovalue.rw` |
+| Transport Provider | `transport@wastetovalue.rw` |
+| COPED / Waste Operator | `regulator@wastetovalue.rw` |
 
 ## Database
 
 The backend defines Sequelize models for users, companies, categories, waste materials, requests, transactions, transport jobs, certificates, sustainability scores, notifications and reviews.
 
-By default the API uses seed data and does not connect to MySQL, so the platform opens immediately for demos. To enable MySQL sync:
+The API uses MySQL. On startup it syncs the Sequelize models and refreshes the prepared presentation data unless `SEED_DEMO_DATA=false` is set. Existing demo accounts are updated to the configured `SEED_PASSWORD`, so the live demo credentials remain reliable after redeploys.
 
 ```bash
 copy backend\.env.example backend\.env
 ```
 
-Set your MySQL credentials in `backend/.env`, then change:
+Set your MySQL credentials in `backend/.env`, then keep:
 
 ```env
 DB_SYNC=true
+SEED_DEMO_DATA=true
 ```
 
 ## Main Routes

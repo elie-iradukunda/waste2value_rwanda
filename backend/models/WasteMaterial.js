@@ -71,6 +71,16 @@ const WasteMaterial = sequelize.define("WasteMaterial", {
   },
   reuseSuggestions: {
     type: DataTypes.TEXT
+  },
+  qualityVerified: {
+    type: DataTypes.BOOLEAN,
+    defaultValue: false
+  },
+  qualityVerifiedAt: {
+    type: DataTypes.DATE
+  },
+  rejectionReason: {
+    type: DataTypes.TEXT
   }
 });
 

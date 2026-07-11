@@ -26,7 +26,7 @@ export default function Home() {
           </p>
           <div className="mt-10 flex flex-wrap gap-5">
             <Link to="/marketplace-preview"><ActionButton icon={ArrowRight}>Explore Materials</ActionButton></Link>
-            <Link to="/industry/add-material"><ActionButton variant="outline" icon={Plus}>List Waste</ActionButton></Link>
+            <Link to="/industry"><ActionButton variant="outline" icon={Plus}>List Waste</ActionButton></Link>
           </div>
         </div>
 

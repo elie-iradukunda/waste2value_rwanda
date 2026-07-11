@@ -1,46 +1,28 @@
 import DashboardShell from "../../components/dashboard/DashboardShell";
-import { Alert, LoadingState, Panel, ProgressBar, StatGrid, StatusPill } from "../../components/dashboard/ui";
+import { Alert, LoadingState, Panel, ProgressBar, StatGrid } from "../../components/dashboard/ui";
 import { useApiResource } from "../../hooks/useApi";
 import { api } from "../../lib/api";
-import { dashboards } from "../../data/platformData";
-
-function alertTone(level) {
-  if (level === "High") return "red";
-  if (level === "Medium") return "orange";
-  return "green";
-}
 
 export default function RegulatorDashboard() {
   const { data, loading, error } = useApiResource(
-    () => api.get("/analytics/regulator"),
-    { dashboard: dashboards.regulator },
+    () => api.get("/dashboards/regulator"),
+    { dashboard: { stats: [], impact: [] } },
     []
   );
-  const dashboard = { ...dashboards.regulator, ...(data.dashboard || {}) };
+  const dashboard = data.dashboard || { stats: [], impact: [] };
 
   return (
-    <DashboardShell title={dashboard.title} userRole={dashboard.userRole} active={dashboard.active}>
+    <DashboardShell title="COPED / Waste Operator Dashboard" userRole="regulator" active="Dashboard">
       <div className="grid gap-7">
         {loading && <LoadingState />}
         <Alert tone="red">{error}</Alert>
         <StatGrid stats={dashboard.stats} />
-        <div className="grid gap-7 xl:grid-cols-[1.35fr_1fr]">
-          <Panel title="Circular Economy Impact">
-            <div className="grid gap-7">
-              {dashboard.impact.map((item) => <ProgressBar key={item.label} label={item.label} value={item.value} max={45} />)}
-            </div>
-          </Panel>
-          <Panel title="Compliance Alerts">
-            <div className="grid gap-5">
-              {dashboard.alerts.map((alert) => (
-                <div key={alert.title} className="flex items-center justify-between gap-3 rounded-lg border border-line bg-white p-4">
-                  <span className="text-sm font-semibold text-ink">{alert.title}</span>
-                  <StatusPill tone={alertTone(alert.level)}>{alert.level}</StatusPill>
-                </div>
-              ))}
-            </div>
-          </Panel>
-        </div>
+        <Panel title="Circular Economy Impact (Sorting and Recovery by Category)">
+          <div className="grid gap-7">
+            {dashboard.impact.length === 0 && <p className="text-sm font-semibold text-muted">No material data recorded yet.</p>}
+            {dashboard.impact.map((item) => <ProgressBar key={item.label} label={item.label} value={item.value} max={100} />)}
+          </div>
+        </Panel>
       </div>
     </DashboardShell>
   );

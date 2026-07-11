@@ -32,6 +32,9 @@ const MaterialRequest = sequelize.define("MaterialRequest", {
   status: {
     type: DataTypes.ENUM("pending", "approved", "rejected", "negotiating", "cancelled"),
     defaultValue: "pending"
+  },
+  rejectionReason: {
+    type: DataTypes.TEXT
   }
 });
 

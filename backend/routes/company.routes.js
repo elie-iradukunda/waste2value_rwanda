@@ -1,16 +1,7 @@
 const router = require("express").Router();
-const controller = require("../controllers/platform.controller");
-const { companies } = require("../data/mockData");
+const controller = require("../controllers/company.controller");
+const { authenticate, authorize } = require("../middleware/auth");
 
-router.get("/", controller.list("companies"));
-router.get("/rankings", (_req, res) => {
-  res.json({
-    success: true,
-    rankings: [...companies]
-      .sort((a, b) => b.sustainabilityScore - a.sustainabilityScore)
-      .map((company, index) => ({ rank: index + 1, ...company }))
-  });
-});
-router.patch("/:id/verify", controller.updateStatus("Company verification"));
+router.patch("/:id/verify", authenticate, authorize("admin"), controller.verify);
 
 module.exports = router;

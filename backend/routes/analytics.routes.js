@@ -1,8 +1,10 @@
 const router = require("express").Router();
-const controller = require("../controllers/platform.controller");
+const controller = require("../controllers/analytics.controller");
+const { authenticate, authorize } = require("../middleware/auth");
 
-router.get("/", controller.analytics);
-router.get("/prediction", controller.dashboard("analytics"));
-router.get("/regulator", controller.dashboard("regulator"));
+router.use(authenticate, authorize("admin", "regulator"));
+
+router.get("/reports", controller.reports);
+router.get("/regulator", controller.regulatorDashboard);
 
 module.exports = router;

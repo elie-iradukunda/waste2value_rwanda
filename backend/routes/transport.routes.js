@@ -1,16 +1,9 @@
 const router = require("express").Router();
-const controller = require("../controllers/platform.controller");
+const controller = require("../controllers/transport.controller");
+const { authenticate, authorize } = require("../middleware/auth");
 
-router.get("/dashboard", controller.dashboard("transporter"));
-router.get("/jobs", controller.list("transportJobs"));
-router.post("/jobs", controller.createTransportJob);
-router.patch("/jobs/:id/status", controller.updateStatus("Transport job"));
-router.post("/jobs/:id/proof", (req, res) => res.status(201).json({
-  success: true,
-  message: "Proof of pickup or delivery uploaded",
-  jobId: Number(req.params.id),
-  proofType: req.body.proofType || "delivery",
-  uploadedAt: new Date().toISOString()
-}));
+router.get("/dashboard", authenticate, authorize("transporter", "admin"), controller.dashboard);
+router.get("/jobs", authenticate, authorize("transporter", "admin", "buyer", "regulator"), controller.jobs);
+router.patch("/jobs/:id/status", authenticate, authorize("transporter", "admin", "buyer"), controller.updateStatus);
 
 module.exports = router;

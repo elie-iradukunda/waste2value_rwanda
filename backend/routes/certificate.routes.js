@@ -1,8 +1,8 @@
 const router = require("express").Router();
-const controller = require("../controllers/platform.controller");
+const controller = require("../controllers/certificate.controller");
+const { authenticate } = require("../middleware/auth");
 
-router.get("/", controller.list("certificates"));
+router.get("/", authenticate, controller.list);
 router.get("/verify/:number", controller.verifyCertificate);
-router.post("/generate", controller.generateCertificate);
 
 module.exports = router;

@@ -1,8 +1,9 @@
 const router = require("express").Router();
-const controller = require("../controllers/platform.controller");
+const controller = require("../controllers/request.controller");
+const { authenticate, authorize } = require("../middleware/auth");
 
-router.get("/", controller.list("materialRequests"));
-router.post("/", controller.createRequest);
-router.patch("/:id/status", controller.updateStatus("Request"));
+router.get("/", authenticate, controller.list);
+router.post("/", authenticate, authorize("buyer"), controller.createRequest);
+router.patch("/:id/status", authenticate, authorize("industry", "admin", "buyer"), controller.updateStatus);
 
 module.exports = router;

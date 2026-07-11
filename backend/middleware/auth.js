@@ -9,7 +9,7 @@ exports.authenticate = (req, res, next) => {
   }
 
   try {
-    req.user = jwt.verify(token, process.env.JWT_SECRET || "waste2value-dev-secret");
+    req.user = jwt.verify(token, process.env.JWT_SECRET || "wastetovalue-dev-secret");
     return next();
   } catch (_error) {
     return res.status(401).json({ success: false, message: "Invalid or expired token" });

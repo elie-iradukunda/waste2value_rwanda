@@ -1,11 +1,13 @@
 {
-  "name": "waste2value-backend",
+  "name": "wastetovalue-backend",
   "version": "1.0.0",
   "private": true,
   "main": "server.js",
   "scripts": {
     "dev": "nodemon server.js",
-    "start": "node server.js"
+    "start": "node server.js",
+    "db:seed": "node seed.js",
+    "test": "node scripts/verify-waste-to-value.js"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",
@@ -13,6 +15,7 @@
     "dotenv": "^16.4.7",
     "express": "^4.21.2",
     "jsonwebtoken": "^9.0.2",
+    "multer": "^2.2.0",
     "mysql2": "^3.12.0",
     "qrcode": "^1.5.4",
     "sequelize": "^6.37.5"

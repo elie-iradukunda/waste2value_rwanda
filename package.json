@@ -1,8 +1,8 @@
 {
-  "name": "waste2value-rwanda-platform",
+  "name": "wastetovalue-rwanda-platform",
   "version": "1.0.0",
   "private": true,
-  "description": "Waste2Value Rwanda circular economy platform with React, Tailwind CSS v3, Node.js, Express, MySQL and Sequelize.",
+  "description": "Waste-to-Value Rwanda circular economy platform with React, Tailwind CSS v3, Node.js, Express, MySQL and Sequelize.",
   "scripts": {
     "dev": "concurrently \"npm run dev --prefix backend\" \"npm run dev --prefix frontend\"",
     "build": "npm run build --prefix frontend",
@@ -14,6 +14,7 @@
     "node": ">=20.19.0"
   },
   "devDependencies": {
-    "concurrently": "^8.2.2"
+    "concurrently": "^8.2.2",
+    "playwright": "^1.61.1"
   }
 }

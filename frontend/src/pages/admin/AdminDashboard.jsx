@@ -2,7 +2,6 @@ import DashboardShell from "../../components/dashboard/DashboardShell";
 import { ActionButton, Alert, BarChart, DataTable, LoadingState, Panel, StatGrid, buttonIcons } from "../../components/dashboard/ui";
 import { useAction, useApiResource } from "../../hooks/useApi";
 import { api } from "../../lib/api";
-import { dashboards, transactions } from "../../data/platformData";
 
 const columns = [
   { key: "material", label: "Material" },
@@ -16,21 +15,22 @@ const columns = [
 export default function AdminDashboard() {
   const { data, loading, error, reload } = useApiResource(
     () => api.get("/admin/dashboard"),
-    { dashboard: dashboards.admin, transactions },
+    { dashboard: { stats: [], activity: [], approvals: [] }, transactions: [] },
     []
   );
-  const dashboard = { ...dashboards.admin, ...(data.dashboard || {}) };
-  const rows = data.transactions || transactions;
+  const dashboard = data.dashboard || { stats: [], activity: [], approvals: [] };
+  const rows = data.transactions || [];
   const action = useAction();
 
   async function reviewApproval(approval) {
-    if (!approval.id) return;
-    await action.run(() => api.patch(`/admin/approvals/${approval.id}`, { status: "approved" }), "Approval updated");
+    if (!approval.id || !approval.type) return;
+    if (!window.confirm(`Approve "${approval.title}"? Please confirm.`)) return;
+    await action.run(() => api.patch(`/admin/approvals/${approval.type}/${approval.id}`, { status: "approved" }), "Approval updated");
     reload();
   }
 
   return (
-    <DashboardShell title={dashboard.title} userRole={dashboard.userRole} active={dashboard.active}>
+    <DashboardShell title="System Admin Dashboard" userRole="admin" active="Dashboard">
       <div className="grid gap-7">
         {loading && <LoadingState />}
         <Alert tone="red">{error || action.error}</Alert>
@@ -42,11 +42,12 @@ export default function AdminDashboard() {
           </Panel>
           <Panel title="Approval Queue">
             <div className="grid gap-4">
+              {dashboard.approvals.length === 0 && <p className="text-sm font-semibold text-muted">Nothing waiting for approval.</p>}
               {dashboard.approvals.map((approval) => (
-                <div key={approval.id || approval.title || approval} className="flex items-center justify-between gap-3">
-                  <span className="text-sm font-semibold text-ink">{approval.title || approval}</span>
+                <div key={`${approval.type}-${approval.id}`} className="flex items-center justify-between gap-3">
+                  <span className="text-sm font-semibold text-ink">{approval.title}</span>
                   <ActionButton variant="blue" className="h-8 px-5 text-xs" icon={buttonIcons.check} disabled={action.busy} onClick={() => reviewApproval(approval)}>
-                    {approval.status === "approved" ? "Approved" : "Review"}
+                    Review
                   </ActionButton>
                 </div>
               ))}

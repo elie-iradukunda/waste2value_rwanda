@@ -1,19 +1,17 @@
 import { useState } from "react";
 import DashboardShell from "../../components/dashboard/DashboardShell";
-import { ActionButton, Alert, LoadingState, Panel, ProgressBar, StatGrid, buttonIcons } from "../../components/dashboard/ui";
+import { ActionButton, Alert, LoadingState, Panel, StatGrid, buttonIcons } from "../../components/dashboard/ui";
 import { useAction, useApiResource } from "../../hooks/useApi";
-import { api, normalizeMaterial } from "../../lib/api";
-import { dashboards } from "../../data/platformData";
+import { api } from "../../lib/api";
 
 export default function IndustryDashboard() {
   const [form, setForm] = useState({ category: "Plastic", unit: "kg", district: "Gasabo", sector: "Kacyiru" });
   const { data, loading, error, reload } = useApiResource(
     () => api.get("/dashboards/industry"),
-    { dashboard: dashboards.industry, materials: [] },
+    { dashboard: { stats: [], listings: [] } },
     []
   );
-  const dashboard = { ...dashboards.industry, ...(data.dashboard || {}) };
-  const materials = (data.materials || []).map(normalizeMaterial);
+  const dashboard = data.dashboard || { stats: [], listings: [] };
   const action = useAction();
 
   function updateField(event) {
@@ -30,13 +28,13 @@ export default function IndustryDashboard() {
   }
 
   return (
-    <DashboardShell title={dashboard.title} userRole={dashboard.userRole} active={dashboard.active}>
+    <DashboardShell title="Waste Producer Dashboard" userRole="industry" active="Dashboard">
       <div className="grid gap-7">
         {loading && <LoadingState />}
         <Alert tone="red">{error || action.error}</Alert>
         <Alert>{action.message}</Alert>
         <StatGrid stats={dashboard.stats} />
-        <Panel title="Add New Waste Material">
+        <Panel title="Post a Waste Material">
           <form className="grid items-end gap-5 lg:grid-cols-[1fr_1fr_180px]" onSubmit={submitMaterial}>
             <div className="grid gap-4 sm:grid-cols-2 lg:col-span-2">
               <label className="grid gap-2">
@@ -67,26 +65,28 @@ export default function IndustryDashboard() {
                   {["kg", "tons", "bags", "pieces"].map((unit) => <option key={unit}>{unit}</option>)}
                 </select>
               </label>
+              <label className="grid gap-2">
+                <span className="text-xs font-extrabold text-muted">District</span>
+                <input name="district" value={form.district || ""} onChange={updateField} className="h-11 rounded-lg border border-line bg-slate-50 px-4 text-sm outline-none focus:border-brand-500" />
+              </label>
+              <label className="grid gap-2">
+                <span className="text-xs font-extrabold text-muted">Sector</span>
+                <input name="sector" value={form.sector || ""} onChange={updateField} className="h-11 rounded-lg border border-line bg-slate-50 px-4 text-sm outline-none focus:border-brand-500" />
+              </label>
             </div>
             <ActionButton icon={buttonIcons.upload} className="w-full" disabled={action.busy}>{action.busy ? "Publishing..." : "Publish"}</ActionButton>
           </form>
         </Panel>
-        <div className="grid gap-7 xl:grid-cols-[1fr_1.05fr]">
-          <Panel title="My Waste Listings">
-            <div className="grid gap-4">
-              {(materials.length ? materials : dashboard.listings).slice(0, 5).map((listing, index) => (
-                <p key={listing.id || listing} className={`rounded-lg px-5 py-4 text-sm font-bold ${index % 3 === 1 ? "bg-slate-50" : "bg-brand-50"}`}>
-                  {typeof listing === "string" ? listing : `${listing.title} - ${listing.quantity} - ${listing.status}`}
-                </p>
-              ))}
-            </div>
-          </Panel>
-          <Panel title="Sustainability Score Breakdown">
-            <div className="grid gap-6">
-              {dashboard.scoreBreakdown.map((item) => <ProgressBar key={item.label} {...item} />)}
-            </div>
-          </Panel>
-        </div>
+        <Panel title="My Waste Listings">
+          <div className="grid gap-4">
+            {dashboard.listings.length === 0 && <p className="text-sm font-semibold text-muted">No materials listed yet.</p>}
+            {dashboard.listings.map((listing, index) => (
+              <p key={listing} className={`rounded-lg px-5 py-4 text-sm font-bold ${index % 2 === 1 ? "bg-slate-50" : "bg-brand-50"}`}>
+                {listing}
+              </p>
+            ))}
+          </div>
+        </Panel>
       </div>
     </DashboardShell>
   );

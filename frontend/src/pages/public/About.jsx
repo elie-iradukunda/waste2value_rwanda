@@ -8,7 +8,7 @@ export default function About() {
         <div>
           <h1 className="text-4xl font-extrabold text-ink">Circular Economy Impact</h1>
           <p className="mt-6 max-w-3xl text-base font-medium leading-8 text-muted">
-            Waste2Value Rwanda helps companies reduce disposal costs, gives SMEs access to affordable raw materials, and creates trusted digital proof for reuse activity.
+            Waste-to-Value Rwanda helps companies reduce disposal costs, gives SMEs access to affordable raw materials, and creates trusted digital proof for reuse activity.
           </p>
           <div className="mt-8 grid gap-5 sm:grid-cols-2">
             {["Industrial waste exchange", "Smart matching", "Digital certificates", "Sustainability scoring"].map((item) => (

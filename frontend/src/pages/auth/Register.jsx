@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import PublicLayout from "../../components/PublicLayout";
 import { ActionButton, Alert, Panel, buttonIcons } from "../../components/dashboard/ui";
 import { api } from "../../lib/api";
+import { storeSession } from "../../hooks/useAuth";
 
 const roleOptions = [
   { value: "industry", label: "Waste Producer" },
@@ -43,7 +44,8 @@ export default function Register() {
     try {
       const payload = await api.post("/auth/register", form);
       setMessage(payload.message);
-      setTimeout(() => navigate(payload.redirectTo || "/login"), 650);
+      storeSession(payload.user, payload.token);
+      setTimeout(() => navigate(payload.redirectTo || "/login"), 900);
     } catch (err) {
       setError(err.message || "Registration failed");
     } finally {

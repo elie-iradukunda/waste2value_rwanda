@@ -1,4 +1,5 @@
 import { CheckCircle2, Download, Filter, QrCode, Search, Send, Upload } from "lucide-react";
+import MaterialImage from "../MaterialImage";
 
 export function cx(...classes) {
   return classes.filter(Boolean).join(" ");
@@ -262,9 +263,12 @@ export function QrPattern() {
 export function MaterialRow({ material, showMatch = true }) {
   return (
     <div className="flex items-center justify-between gap-4 border-b border-slate-100 py-4 last:border-0 max-sm:items-start">
-      <div className="min-w-0">
+      <div className="flex min-w-0 items-center gap-4">
+        <MaterialImage material={material} compact className="h-20 min-h-20 w-24 shrink-0" />
+        <div className="min-w-0">
         <h3 className="truncate text-lg font-extrabold text-ink">{material.title}</h3>
         <p className="mt-1 text-xs font-semibold text-muted">{material.location} - {material.quantity} - {material.price}</p>
+        </div>
       </div>
       {showMatch ? <StatusPill>{material.match}% match</StatusPill> : <StatusPill tone={material.status === "Requested" ? "orange" : "green"}>{material.status}</StatusPill>}
     </div>

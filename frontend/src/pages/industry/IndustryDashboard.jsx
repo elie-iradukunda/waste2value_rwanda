@@ -18,11 +18,26 @@ export default function IndustryDashboard() {
     setForm((current) => ({ ...current, [event.target.name]: event.target.value }));
   }
 
+  function updateImage(event) {
+    const image = event.target.files?.[0] || null;
+    setForm((current) => ({ ...current, image, imageName: image?.name || "" }));
+  }
+
+  function materialPayload() {
+    const payload = new FormData();
+    Object.entries(form).forEach(([key, value]) => {
+      if (key === "imageName" || value === undefined || value === null || value === "") return;
+      payload.append(key, value);
+    });
+    return payload;
+  }
+
   async function submitMaterial(event) {
     event.preventDefault();
-    const payload = await action.run(() => api.post("/materials", form), "Material submitted for admin approval");
+    const payload = await action.run(() => api.post("/materials", materialPayload()), "Material submitted for admin approval");
     if (payload) {
       setForm({ category: "Plastic", unit: "kg", district: "Gasabo", sector: "Kacyiru" });
+      event.currentTarget.reset();
       reload();
     }
   }
@@ -72,6 +87,11 @@ export default function IndustryDashboard() {
               <label className="grid gap-2">
                 <span className="text-xs font-extrabold text-muted">Sector</span>
                 <input name="sector" value={form.sector || ""} onChange={updateField} className="h-11 rounded-lg border border-line bg-slate-50 px-4 text-sm outline-none focus:border-brand-500" />
+              </label>
+              <label className="grid gap-2 sm:col-span-2">
+                <span className="text-xs font-extrabold text-muted">Material photo (optional)</span>
+                <input name="image" type="file" accept="image/*" onChange={updateImage} className="rounded-lg border border-dashed border-line bg-slate-50 px-4 py-3 text-sm font-semibold outline-none file:mr-4 file:rounded-lg file:border-0 file:bg-brand-600 file:px-4 file:py-2 file:text-sm file:font-extrabold file:text-white focus:border-brand-500" />
+                <span className="text-xs font-bold text-muted">{form.imageName || "Upload a clear photo so buyers can inspect the material visually."}</span>
               </label>
             </div>
             <ActionButton icon={buttonIcons.upload} className="w-full" disabled={action.busy}>{action.busy ? "Publishing..." : "Publish"}</ActionButton>

@@ -1,4 +1,5 @@
 import { useParams, Link } from "react-router-dom";
+import MaterialImage from "../components/MaterialImage";
 import DashboardShell from "../components/dashboard/DashboardShell";
 import { ActionButton, Alert, LoadingState, Panel, StatusPill, buttonIcons } from "../components/dashboard/ui";
 import { useAction, useApiResource } from "../hooks/useApi";
@@ -37,6 +38,7 @@ export default function MaterialDetail() {
         <Panel title={material.title}>
           <Alert>{action.message}</Alert>
           <Alert tone="red">{action.error}</Alert>
+          <MaterialImage material={material} className="mb-6 min-h-[280px]" />
           <div className="grid gap-4 sm:grid-cols-2">
             <div><p className="text-xs font-bold text-muted">Category</p><p className="text-sm font-extrabold text-ink">{material.category}</p></div>
             <div><p className="text-xs font-bold text-muted">Quantity</p><p className="text-sm font-extrabold text-ink">{material.quantity}</p></div>

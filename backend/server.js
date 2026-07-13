@@ -70,6 +70,7 @@ async function start() {
   const shouldSyncDatabase = process.env.DB_SYNC === "true" || process.env.NODE_ENV === "production" || Boolean(process.env.RAILWAY_ENVIRONMENT);
   if (shouldSyncDatabase) {
     await models.sequelize.authenticate();
+    await ensurePreSyncCompatibilitySchema();
     await models.sequelize.sync();
     await ensureCompatibilitySchema();
     console.log("MySQL connected and Sequelize models synced. Run `node seed.js` to populate demo data.");
@@ -78,6 +79,19 @@ async function start() {
   app.listen(port, () => {
     console.log(`Waste-to-Value Rwanda API listening on http://localhost:${port}`);
   });
+}
+
+async function ensurePreSyncCompatibilitySchema() {
+  const queryInterface = models.sequelize.getQueryInterface();
+
+  await addMissingColumns(queryInterface, models.Transaction.getTableName(), [
+    ["type", { type: DataTypes.STRING, allowNull: true }],
+    ["message", { type: DataTypes.TEXT, allowNull: true }],
+    ["meta", { type: DataTypes.JSON, allowNull: true }],
+    ["actorId", { type: DataTypes.INTEGER, allowNull: true }],
+    ["listingId", { type: DataTypes.INTEGER, allowNull: true }],
+    ["createdAt", { type: DataTypes.DATE, allowNull: true }]
+  ]);
 }
 
 async function ensureCompatibilitySchema() {

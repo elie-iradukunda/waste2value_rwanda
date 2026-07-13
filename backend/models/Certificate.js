@@ -3,51 +3,61 @@ const sequelize = require("../config/database");
 
 const Certificate = sequelize.define("Certificate", {
   id: {
-    type: DataTypes.INTEGER,
-    primaryKey: true,
-    autoIncrement: true
+    type: DataTypes.STRING,
+    primaryKey: true
   },
-  transactionId: {
-    type: DataTypes.INTEGER,
+  quantity: {
+    type: DataTypes.DECIMAL(12, 2),
     allowNull: false
   },
-  certificateNumber: {
+  unit: {
+    type: DataTypes.ENUM("KG", "TONNE", "M3"),
+    allowNull: false
+  },
+  category: {
     type: DataTypes.STRING,
+    allowNull: false
+  },
+  receiptCondition: {
+    type: DataTypes.STRING(32),
+    allowNull: true
+  },
+  receiverName: {
+    type: DataTypes.STRING,
+    allowNull: true
+  },
+  receiverPhone: {
+    type: DataTypes.STRING,
+    allowNull: true
+  },
+  receiptLocation: {
+    type: DataTypes.STRING,
+    allowNull: true
+  },
+  receiptNotes: {
+    type: DataTypes.TEXT,
+    allowNull: true
+  },
+  receiptConfirmedAt: {
+    type: DataTypes.DATE,
+    allowNull: true
+  },
+  issuedAt: {
+    type: DataTypes.DATE,
+    defaultValue: DataTypes.NOW
+  },
+  listingId: {
+    type: DataTypes.INTEGER,
     allowNull: false,
     unique: true
   },
-  materialType: {
-    type: DataTypes.STRING,
+  producerCompanyId: {
+    type: DataTypes.INTEGER,
     allowNull: false
   },
-  quantityReused: {
-    type: DataTypes.STRING,
+  recyclerCompanyId: {
+    type: DataTypes.INTEGER,
     allowNull: false
-  },
-  sellerCompanyName: {
-    type: DataTypes.STRING,
-    allowNull: false
-  },
-  buyerCompanyName: {
-    type: DataTypes.STRING,
-    allowNull: false
-  },
-  transporterName: {
-    type: DataTypes.STRING
-  },
-  issueDate: {
-    type: DataTypes.DATEONLY,
-    allowNull: false
-  },
-  qrCodeUrl: {
-    type: DataTypes.STRING
-  },
-  pdfUrl: {
-    type: DataTypes.STRING
-  },
-  verificationStatus: {
-    type: DataTypes.ENUM("pending", "verified", "revoked"),
-    defaultValue: "verified"
   }
 }, {
   updatedAt: false

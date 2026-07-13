@@ -2,6 +2,8 @@ const fs = require("fs");
 const path = require("path");
 
 const baseUrl = process.env.WTV_URL || "http://localhost:5000";
+const demoPassword = process.env.WTV_DEMO_PASSWORD || "password123";
+const sampleImage = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/p9sAAAAASUVORK5CYII=";
 const results = [];
 
 function record(name, passed, detail = "") {
@@ -16,28 +18,27 @@ async function request(endpoint, options = {}) {
   let data = null;
   try {
     data = text ? JSON.parse(text) : null;
-  } catch {
-    data = text;
+  } catch (_error) {
+    data = { message: text };
   }
-  return { status: response.status, data, headers: response.headers };
+  return { status: response.status, data };
 }
 
-function auth(token, extra = {}) {
-  return { ...extra, Authorization: `Bearer ${token}` };
+function jsonHeaders(token) {
+  return {
+    "Content-Type": "application/json",
+    ...(token ? { Authorization: `Bearer ${token}` } : {})
+  };
 }
 
 async function login(email) {
   const response = await request("/api/auth/login", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ email, password: "demo123" })
+    headers: jsonHeaders(),
+    body: JSON.stringify({ email, password: demoPassword })
   });
   record(`Login: ${email}`, response.status === 200 && response.data?.token, `HTTP ${response.status}`);
   return response.data;
-}
-
-function unique(prefix) {
-  return `${prefix}-${Date.now()}`;
 }
 
 async function run() {
@@ -46,221 +47,394 @@ async function run() {
   const health = await request("/api/health");
   record("API health check", health.status === 200 && health.data?.message?.includes("Waste-to-Value Rwanda"), `HTTP ${health.status}`);
 
-  const publicHome = await request("/api/public/home");
-  record("Public homepage data loads", publicHome.status === 200 && publicHome.data?.stats?.length >= 3, `HTTP ${publicHome.status}`);
+  const publicMarketplaceInitial = await request("/api/public/marketplace");
+  record(
+    "Public landing loads approved marketplace",
+    publicMarketplaceInitial.status === 200 && Array.isArray(publicMarketplaceInitial.data),
+    `HTTP ${publicMarketplaceInitial.status}`
+  );
 
-  const accounts = {};
-  for (const [role, email] of Object.entries({
-    admin: "admin@wastetovalue.rw",
-    industry: "industry@wastetovalue.rw",
-    buyer: "buyer@wastetovalue.rw",
-    transporter: "transport@wastetovalue.rw",
-    regulator: "regulator@wastetovalue.rw"
-  })) {
-    accounts[role] = await login(email);
-  }
+  const publicProducersInitial = await request("/api/public/producers");
+  record(
+    "Public landing loads approved producer profiles",
+    publicProducersInitial.status === 200 && publicProducersInitial.data?.some((company) => company.status === "APPROVED" && Array.isArray(company.materials)),
+    `HTTP ${publicProducersInitial.status}`
+  );
 
-  const anonymousAdmin = await request("/api/admin/users");
-  record("Anonymous admin access is rejected", anonymousAdmin.status === 401, `HTTP ${anonymousAdmin.status}`);
-
-  const adminHeaders = auth(accounts.admin.token, { "Content-Type": "application/json" });
-  const industryHeaders = auth(accounts.industry.token, { "Content-Type": "application/json" });
-  const buyerHeaders = auth(accounts.buyer.token, { "Content-Type": "application/json" });
-  const transporterHeaders = auth(accounts.transporter.token, { "Content-Type": "application/json" });
-  const regulatorHeaders = auth(accounts.regulator.token, { "Content-Type": "application/json" });
-
-  const stamp = Date.now();
-  const registration = await request("/api/auth/register", {
+  const blockedTransportRegistration = await request("/api/auth/register", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: jsonHeaders(),
     body: JSON.stringify({
-      fullName: "Presentation Test Buyer",
-      email: `presentation-buyer-${stamp}@wastetovalue.rw`,
-      phone: "0788000999",
-      password: "Temporary123",
-      role: "buyer",
-      companyName: `Presentation Buyer ${stamp}`,
-      district: "Gasabo",
-      sector: "Kacyiru",
-      businessCategory: "Recycling"
+      role: "TRANSPORT",
+      companyName: "Verification Transport Self Register",
+      name: "Blocked Transport Registrant",
+      email: `blocked-transport-${Date.now()}@wastetovalue.rw`,
+      phone: "0788000666",
+      password: demoPassword
     })
   });
-  record("Public registration creates a buyer company", registration.status === 201 && registration.data?.user?.role === "buyer", `HTTP ${registration.status}`);
+  record("Transport staff cannot self-register publicly", blockedTransportRegistration.status === 400, `HTTP ${blockedTransportRegistration.status}`);
 
-  const verifyCompany = await request(`/api/admin/users/${registration.data.user.id}/company-verification`, {
-    method: "PATCH",
-    headers: adminHeaders,
-    body: JSON.stringify({ status: "verified" })
-  });
-  record("Admin verifies registered company", verifyCompany.status === 200 && verifyCompany.data?.status === "verified", `HTTP ${verifyCompany.status}`);
+  const accounts = {
+    admin: await login("admin@wastetovalue.rw"),
+    producer: await login("industry@wastetovalue.rw"),
+    recycler: await login("buyer@wastetovalue.rw"),
+    transport: await login("transport@wastetovalue.rw")
+  };
 
-  const suspendUser = await request(`/api/admin/users/${registration.data.user.id}/status`, {
-    method: "PATCH",
-    headers: adminHeaders,
-    body: JSON.stringify({ status: "suspended", reason: "Automated verification suspension test" })
-  });
-  record("Admin suspends a user account", suspendUser.status === 200 && suspendUser.data?.status === "suspended", `HTTP ${suspendUser.status}`);
+  const anonymous = await request("/api/admin/reports");
+  record("Anonymous admin access is rejected", anonymous.status === 401, `HTTP ${anonymous.status}`);
 
-  const reactivateUser = await request(`/api/admin/users/${registration.data.user.id}/status`, {
-    method: "PATCH",
-    headers: adminHeaders,
-    body: JSON.stringify({ status: "active" })
-  });
-  record("Admin reactivates a user account", reactivateUser.status === 200 && reactivateUser.data?.status === "active", `HTTP ${reactivateUser.status}`);
-
-  const categoryName = unique("Presentation Category");
-  const category = await request("/api/categories", {
-    method: "POST",
-    headers: adminHeaders,
-    body: JSON.stringify({ name: categoryName, description: "Temporary category created during verification." })
-  });
-  record("Admin creates a material category", category.status === 201 && category.data?.category?.name === categoryName, `HTTP ${category.status}`);
-
-  const deactivateCategory = await request(`/api/categories/${category.data.category.id}/status`, {
-    method: "PATCH",
-    headers: adminHeaders,
-    body: JSON.stringify({})
-  });
-  record("Admin deactivates a category", deactivateCategory.status === 200 && deactivateCategory.data?.status === "inactive", `HTTP ${deactivateCategory.status}`);
-
-  const reactivateCategory = await request(`/api/categories/${category.data.category.id}/status`, {
-    method: "PATCH",
-    headers: adminHeaders,
-    body: JSON.stringify({})
-  });
-  record("Admin reactivates a category", reactivateCategory.status === 200 && reactivateCategory.data?.status === "active", `HTTP ${reactivateCategory.status}`);
-
-  const materialTitle = unique("Presentation Plastic Batch");
-  const materialForm = new FormData();
-  materialForm.set("title", materialTitle);
-  materialForm.set("category", "Plastic");
-  materialForm.set("description", "Clean sorted presentation-test plastic scraps for recycling.");
-  materialForm.set("quantity", "320");
-  materialForm.set("unit", "kg");
-  materialForm.set("condition", "Clean and dry");
-  materialForm.set("price", "95");
-  materialForm.set("district", "Kicukiro");
-  materialForm.set("sector", "Gikondo");
-  materialForm.set("pickupAddress", "Kigali Special Economic Zone verification pickup");
-
-  const createdMaterial = await request("/api/materials", {
-    method: "POST",
-    headers: auth(accounts.industry.token),
-    body: materialForm
-  });
-  record("Waste producer posts a material listing", createdMaterial.status === 201 && createdMaterial.data?.material?.status === "pending_review", `HTTP ${createdMaterial.status}`);
-  const materialId = createdMaterial.data.material.id;
-
-  const updatedMaterial = await request(`/api/materials/${materialId}`, {
-    method: "PATCH",
-    headers: industryHeaders,
-    body: JSON.stringify({ quantity: 360, district: "Gasabo", sector: "Kacyiru" })
-  });
-  record("Waste producer edits listing quantity/location", updatedMaterial.status === 200 && Number(updatedMaterial.data?.item?.quantity) === 360, `HTTP ${updatedMaterial.status}`);
-
-  const adminApprovesMaterial = await request(`/api/materials/${materialId}/status`, {
-    method: "PATCH",
-    headers: adminHeaders,
-    body: JSON.stringify({ status: "available" })
-  });
-  record("Admin approves material listing", adminApprovesMaterial.status === 200 && adminApprovesMaterial.data?.status === "available", `HTTP ${adminApprovesMaterial.status}`);
-
-  const quality = await request(`/api/materials/${materialId}/quality`, {
-    method: "PATCH",
-    headers: regulatorHeaders,
-    body: JSON.stringify({})
-  });
-  record("Regulator verifies material quality", quality.status === 200 && quality.data?.item?.qualityVerified === true, `HTTP ${quality.status}`);
-
-  const marketplace = await request("/api/materials");
-  const listedMaterial = marketplace.data?.materials?.find((item) => item.id === materialId);
-  record("Approved material appears in marketplace", marketplace.status === 200 && Boolean(listedMaterial), `HTTP ${marketplace.status}`);
-
-  const materialDetails = await request(`/api/materials/${materialId}`);
-  record("Buyer can get material details", materialDetails.status === 200 && materialDetails.data?.material?.id === materialId, `HTTP ${materialDetails.status}`);
-
-  const cancellableRequest = await request("/api/requests", {
-    method: "POST",
-    headers: buyerHeaders,
-    body: JSON.stringify({ materialId, requestedQuantity: 25, message: "Temporary cancellation verification request." })
-  });
-  record("Buyer posts a material request", cancellableRequest.status === 201 && cancellableRequest.data?.request?.status === "pending", `HTTP ${cancellableRequest.status}`);
-
-  const cancelledRequest = await request(`/api/requests/${cancellableRequest.data.request.id}/status`, {
-    method: "PATCH",
-    headers: buyerHeaders,
-    body: JSON.stringify({ status: "cancelled" })
-  });
-  record("Buyer cancels own pending request", cancelledRequest.status === 200 && cancelledRequest.data?.status === "cancelled", `HTTP ${cancelledRequest.status}`);
-
-  const approvalRequest = await request("/api/requests", {
-    method: "POST",
-    headers: buyerHeaders,
-    body: JSON.stringify({ materialId, requestedQuantity: 120, offeredPrice: 11400, message: "Presentation verification request for approval and transport." })
-  });
-  record("Buyer posts a second request for approval workflow", approvalRequest.status === 201 && approvalRequest.data?.request?.status === "pending", `HTTP ${approvalRequest.status}`);
-
-  const approvedRequest = await request(`/api/requests/${approvalRequest.data.request.id}/status`, {
-    method: "PATCH",
-    headers: industryHeaders,
-    body: JSON.stringify({ status: "approved" })
-  });
-  record("Waste producer approves buyer request", approvedRequest.status === 200 && approvedRequest.data?.status === "approved" && approvedRequest.data?.transactionId, `HTTP ${approvedRequest.status}`);
-
-  const jobs = await request("/api/transport/jobs", { headers: transporterHeaders });
-  const job = jobs.data?.transportJobs?.find((item) => item.transactionId === approvedRequest.data.transactionId);
-  record("Transport provider sees new pickup job", jobs.status === 200 && Boolean(job), job ? `Job ${job.id}` : "missing");
-
-  const accepted = await request(`/api/transport/jobs/${job.id}/status`, {
-    method: "PATCH",
-    headers: transporterHeaders,
-    body: JSON.stringify({ status: "accepted" })
-  });
-  record("Transport provider accepts pickup job", accepted.status === 200 && accepted.data?.status === "accepted", `HTTP ${accepted.status}`);
-
-  const pickedUp = await request(`/api/transport/jobs/${job.id}/status`, {
-    method: "PATCH",
-    headers: transporterHeaders,
-    body: JSON.stringify({ status: "picked_up" })
-  });
-  record("Transport provider marks pickup complete", pickedUp.status === 200 && pickedUp.data?.status === "picked_up", `HTTP ${pickedUp.status}`);
-
-  const inTransit = await request(`/api/transport/jobs/${job.id}/status`, {
-    method: "PATCH",
-    headers: transporterHeaders,
-    body: JSON.stringify({ status: "in_transit" })
-  });
-  record("Transport provider marks delivery in transit", inTransit.status === 200 && inTransit.data?.status === "in_transit", `HTTP ${inTransit.status}`);
-
-  const delivered = await request(`/api/transport/jobs/${job.id}/status`, {
-    method: "PATCH",
-    headers: transporterHeaders,
-    body: JSON.stringify({ status: "delivered" })
-  });
-  record("Transport provider confirms delivery arrival", delivered.status === 200 && delivered.data?.status === "delivered", `HTTP ${delivered.status}`);
-
-  const confirmed = await request(`/api/transport/jobs/${job.id}/status`, {
-    method: "PATCH",
-    headers: buyerHeaders,
-    body: JSON.stringify({ status: "confirmed" })
-  });
-  record("Buyer confirms received material", confirmed.status === 200 && confirmed.data?.status === "confirmed", `HTTP ${confirmed.status}`);
-
-  const certificates = await request("/api/certificates", { headers: buyerHeaders });
-  const certificate = certificates.data?.certificates?.find((item) => item.materialType === materialTitle);
-  record("Certificate is generated after confirmed delivery", certificates.status === 200 && Boolean(certificate), certificate?.certificateNumber || "missing");
-
-  const certificateVerification = await request(`/api/certificates/verify/${encodeURIComponent(certificate.certificateNumber)}`);
-  record("Public certificate verification link works", certificateVerification.status === 200 && certificateVerification.data?.verified === true, `HTTP ${certificateVerification.status}`);
+  const adminHeaders = jsonHeaders(accounts.admin.token);
+  const producerHeaders = jsonHeaders(accounts.producer.token);
+  const recyclerHeaders = jsonHeaders(accounts.recycler.token);
+  let transportHeaders = jsonHeaders(accounts.transport.token);
 
   const adminReports = await request("/api/admin/reports", { headers: adminHeaders });
-  record("Admin opens reports", adminReports.status === 200 && adminReports.data?.dashboard?.stats?.length >= 4, `HTTP ${adminReports.status}`);
+  record("Admin opens reports", adminReports.status === 200 && typeof adminReports.data?.totalCompanies === "number", `HTTP ${adminReports.status}`);
 
-  const regulatorReports = await request("/api/analytics/reports", { headers: regulatorHeaders });
-  record("Regulator opens impact reports", regulatorReports.status === 200 && regulatorReports.data?.dashboard?.impact?.length >= 1, `HTTP ${regulatorReports.status}`);
+  const recyclerRegistrationStamp = Date.now();
+  const registeredRecycler = await request("/api/auth/register", {
+    method: "POST",
+    headers: jsonHeaders(),
+    body: JSON.stringify({
+      role: "RECYCLER",
+      companyName: `Verification Recycler ${recyclerRegistrationStamp}`,
+      name: "Verification Recycler",
+      email: `verification-recycler-${recyclerRegistrationStamp}@wastetovalue.rw`,
+      phone: "0788000777",
+      password: demoPassword
+    })
+  });
+  record("Recycler public registration is approved immediately", registeredRecycler.status === 200 && registeredRecycler.data?.token && registeredRecycler.data?.user?.role === "RECYCLER", `HTTP ${registeredRecycler.status}`);
 
-  const forbiddenReports = await request("/api/admin/reports", { headers: buyerHeaders });
-  record("Buyer cannot open admin reports", forbiddenReports.status === 403, `HTTP ${forbiddenReports.status}`);
+  const registeredRecyclerMarketplace = await request("/api/marketplace", { headers: jsonHeaders(registeredRecycler.data?.token) });
+  record(
+    "New recycler can access purchasing marketplace",
+    registeredRecyclerMarketplace.status === 200 && Array.isArray(registeredRecyclerMarketplace.data),
+    `HTTP ${registeredRecyclerMarketplace.status}`
+  );
+
+  const missingProducerDocument = await request("/api/auth/register", {
+    method: "POST",
+    headers: jsonHeaders(),
+    body: JSON.stringify({
+      role: "PRODUCER",
+      companyName: `Verification Producer Missing RDB ${Date.now()}`,
+      name: "Missing RDB Producer",
+      email: `missing-rdb-producer-${Date.now()}@wastetovalue.rw`,
+      phone: "0788000779",
+      password: demoPassword,
+      businessLocation: "Kigali",
+      producedMaterials: "Plastic packaging",
+      productionDescription: "Produces packaging waste streams."
+    })
+  });
+  record("Producer registration requires RDB document", missingProducerDocument.status === 400, `HTTP ${missingProducerDocument.status}`);
+
+  const producerRegistrationStamp = Date.now();
+  const registeredProducer = await request("/api/auth/register", {
+    method: "POST",
+    headers: jsonHeaders(),
+    body: JSON.stringify({
+      role: "PRODUCER",
+      companyName: `Verification Producer ${producerRegistrationStamp}`,
+      name: "Verification Producer",
+      email: `verification-producer-${producerRegistrationStamp}@wastetovalue.rw`,
+      phone: "0788000778",
+      password: demoPassword,
+      registrationNumber: `RDB-VERIFY-${producerRegistrationStamp}`,
+      businessLocation: "Kigali Special Economic Zone",
+      producedMaterials: "Plastic packaging, PET bottles, clean industrial offcuts",
+      productionDescription: "Automated verification producer profile for admin approval review.",
+      rdbDocumentName: "verification-rdb-document.png",
+      rdbDocumentDataUrl: sampleImage
+    })
+  });
+  record("Producer public registration creates pending company account", registeredProducer.status === 200 && registeredProducer.data?.token && registeredProducer.data?.user?.role === "PRODUCER", `HTTP ${registeredProducer.status}`);
+
+  const registeredPendingCompanies = await request("/api/admin/companies/pending", { headers: adminHeaders });
+  const registeredCompany = registeredPendingCompanies.data?.find((company) => company.contactEmail === `verification-producer-${producerRegistrationStamp}@wastetovalue.rw`);
+  record(
+    "Admin sees producer RDB document and production profile",
+    registeredPendingCompanies.status === 200
+      && registeredCompany?.phone === "0788000778"
+      && registeredCompany?.rdbDocumentDataUrl
+      && registeredCompany?.producedMaterials?.includes("PET bottles"),
+    `HTTP ${registeredPendingCompanies.status}`
+  );
+
+  const rejectedRegistration = await request(`/api/admin/companies/${registeredCompany.id}/review`, {
+    method: "POST",
+    headers: adminHeaders,
+    body: JSON.stringify({ approve: false })
+  });
+  record("Admin can reject temporary producer registration", rejectedRegistration.status === 200 && rejectedRegistration.data?.status === "REJECTED", `HTTP ${rejectedRegistration.status}`);
+
+  const categories = await request("/api/categories", { headers: producerHeaders });
+  const firstCategory = categories.data?.[0];
+  record("Authenticated user loads categories", categories.status === 200 && firstCategory?.id, `HTTP ${categories.status}`);
+
+  const staffStamp = Date.now();
+  const createdTransportStaff = await request("/api/producer/transport-staff", {
+    method: "POST",
+    headers: producerHeaders,
+    body: JSON.stringify({
+      name: "Verification Transport Staff",
+      email: `verification-transport-staff-${staffStamp}@wastetovalue.rw`,
+      password: demoPassword
+    })
+  });
+  record(
+    "Producer creates transport staff credentials",
+    createdTransportStaff.status === 200 && createdTransportStaff.data?.user?.role === "TRANSPORT" && createdTransportStaff.data?.credentials?.password === demoPassword,
+    `HTTP ${createdTransportStaff.status}`
+  );
+
+  const createdTransportLogin = await login(`verification-transport-staff-${staffStamp}@wastetovalue.rw`);
+  transportHeaders = jsonHeaders(createdTransportLogin.token);
+
+  const transportStaffList = await request("/api/producer/transport-staff", { headers: producerHeaders });
+  record(
+    "Producer sees created transport staff account",
+    transportStaffList.status === 200 && transportStaffList.data?.some((staff) => staff.email === `verification-transport-staff-${staffStamp}@wastetovalue.rw`),
+    `HTTP ${transportStaffList.status}`
+  );
+
+  const adminCategories = await request("/api/admin/categories", { headers: adminHeaders });
+  record(
+    "Admin opens category management with usage stats",
+    adminCategories.status === 200 && adminCategories.data?.some((category) => category.id === firstCategory.id && typeof category.totalListings === "number"),
+    `HTTP ${adminCategories.status}`
+  );
+
+  const usedCategory = adminCategories.data?.find((category) => Number(category.totalListings || 0) > 0);
+  if (usedCategory) {
+    const blockedCategoryDelete = await request(`/api/admin/categories/${usedCategory.id}`, {
+      method: "DELETE",
+      headers: adminHeaders
+    });
+    record("Admin cannot remove category that has materials", blockedCategoryDelete.status === 400, `HTTP ${blockedCategoryDelete.status}`);
+  }
+
+  const categoryStamp = Date.now();
+  const createdCategory = await request("/api/admin/categories", {
+    method: "POST",
+    headers: adminHeaders,
+    body: JSON.stringify({ name: `Verification Category ${categoryStamp}` })
+  });
+  record("Admin creates unused category", createdCategory.status === 200 && createdCategory.data?.canDelete === true, `HTTP ${createdCategory.status}`);
+
+  const renamedCategory = await request(`/api/admin/categories/${createdCategory.data.id}`, {
+    method: "PATCH",
+    headers: adminHeaders,
+    body: JSON.stringify({ name: `Verification Category ${categoryStamp} Updated` })
+  });
+  record("Admin renames unused category", renamedCategory.status === 200 && renamedCategory.data?.name?.endsWith("Updated"), `HTTP ${renamedCategory.status}`);
+
+  const deletedCategory = await request(`/api/admin/categories/${createdCategory.data.id}`, {
+    method: "DELETE",
+    headers: adminHeaders
+  });
+  record("Admin removes unused category", deletedCategory.status === 200 && deletedCategory.data?.deleted === true, `HTTP ${deletedCategory.status}`);
+
+  const title = `Verification Plastic Batch ${Date.now()}`;
+  const listing = await request("/api/listings", {
+    method: "POST",
+    headers: producerHeaders,
+    body: JSON.stringify({
+      title,
+      description: "Automated verification listing for the new Waste-to-Value workflow.",
+      categoryId: firstCategory.id,
+      imageDataUrl: sampleImage,
+      imageGallery: [sampleImage, sampleImage],
+      quantity: 125,
+      unit: "KG",
+      priceAmount: 175,
+      currency: "RWF",
+      priceType: "PER_UNIT",
+      location: "Kigali Special Economic Zone"
+    })
+  });
+  record("Producer posts listing for admin approval", listing.status === 200 && listing.data?.status === "PENDING_APPROVAL" && Number(listing.data?.priceAmount) === 175, `HTTP ${listing.status}`);
+
+  const listingId = listing.data.id;
+  const mine = await request("/api/listings/mine", { headers: producerHeaders });
+  record("Producer sees own listing", mine.status === 200 && mine.data?.some((item) => item.id === listingId), `HTTP ${mine.status}`);
+
+  const pendingListings = await request("/api/admin/listings/pending", { headers: adminHeaders });
+  record("Admin sees pending listing", pendingListings.status === 200 && pendingListings.data?.some((item) => item.id === listingId), `HTTP ${pendingListings.status}`);
+
+  const pendingStatusListings = await request("/api/admin/listings/status/PENDING_APPROVAL", { headers: adminHeaders });
+  record(
+    "Admin can open pending materials by status",
+    pendingStatusListings.status === 200 && pendingStatusListings.data?.some((item) => item.id === listingId && item.producerCompany?.name),
+    `HTTP ${pendingStatusListings.status}`
+  );
+
+  const marketplaceBeforeApproval = await request("/api/marketplace", { headers: recyclerHeaders });
+  record(
+    "Pending listing is hidden from recycler marketplace",
+    marketplaceBeforeApproval.status === 200 && !marketplaceBeforeApproval.data?.some((item) => item.id === listingId),
+    `HTTP ${marketplaceBeforeApproval.status}`
+  );
+
+  const blockedPendingRequest = await request(`/api/listings/${listingId}/requests`, {
+    method: "POST",
+    headers: recyclerHeaders,
+    body: JSON.stringify({
+      requestedQuantity: 25,
+      requestedUnit: "KG",
+      contactName: "Verification Buyer",
+      contactPhone: "0788000999",
+      deliveryLocation: "Verification recycler workshop",
+      message: "This should fail before admin approval."
+    })
+  });
+  record("Pending listing cannot be requested before approval", blockedPendingRequest.status === 400, `HTTP ${blockedPendingRequest.status}`);
+
+  const approvedListing = await request(`/api/admin/listings/${listingId}/review`, {
+    method: "POST",
+    headers: adminHeaders,
+    body: JSON.stringify({ approve: true, quality: "A" })
+  });
+  record("Admin approves and grades listing", approvedListing.status === 200 && approvedListing.data?.status === "APPROVED", `HTTP ${approvedListing.status}`);
+
+  const approvedStatusListings = await request("/api/admin/listings/status/APPROVED", { headers: adminHeaders });
+  record(
+    "Admin can open approved materials by status",
+    approvedStatusListings.status === 200 && approvedStatusListings.data?.some((item) => item.id === listingId && item.quality === "A"),
+    `HTTP ${approvedStatusListings.status}`
+  );
+
+  const publicMarketplaceAfterApproval = await request("/api/public/marketplace");
+  const publicListing = publicMarketplaceAfterApproval.data?.find((item) => item.id === listingId);
+  record(
+    "Public marketplace shows approved material full details",
+    publicMarketplaceAfterApproval.status === 200 && publicListing?.producerCompany?.name && Number(publicListing.priceAmount) === 175 && Array.isArray(publicListing.imageGallery),
+    `HTTP ${publicMarketplaceAfterApproval.status}`
+  );
+
+  const marketplace = await request("/api/marketplace", { headers: recyclerHeaders });
+  const marketplaceListing = marketplace.data?.find((item) => item.id === listingId);
+  record(
+    "Recycler sees approved listing",
+    marketplace.status === 200 && marketplaceListing && Number(marketplaceListing.priceAmount) === 175 && Array.isArray(marketplaceListing.imageGallery),
+    `HTTP ${marketplace.status}`
+  );
+
+  const createdRequest = await request(`/api/listings/${listingId}/requests`, {
+    method: "POST",
+    headers: recyclerHeaders,
+    body: JSON.stringify({
+      requestedQuantity: 75,
+      requestedUnit: "KG",
+      proposedPrice: 175,
+      contactName: "Verification Buyer",
+      contactPhone: "0788000999",
+      preferredPickupDate: new Date().toISOString().slice(0, 10),
+      deliveryLocation: "Verification recycler workshop",
+      message: "Verification request for matched transport workflow."
+    })
+  });
+  record("Recycler requests material", createdRequest.status === 200 && createdRequest.data?.status === "PENDING" && Number(createdRequest.data?.requestedQuantity) === 75, `HTTP ${createdRequest.status}`);
+
+  const incoming = await request("/api/producer/requests", { headers: producerHeaders });
+  const requestForListing = incoming.data?.find((item) => item.listingId === listingId);
+  record("Producer sees incoming request", incoming.status === 200 && requestForListing?.id && requestForListing?.contactPhone === "0788000999", `HTTP ${incoming.status}`);
+
+  const matched = await request(`/api/requests/${requestForListing.id}/review`, {
+    method: "POST",
+    headers: producerHeaders,
+    body: JSON.stringify({ approve: true, reason: "Verification approved because recycler profile and pickup plan are acceptable." })
+  });
+  const jobId = matched.data?.job?.id;
+  record("Producer approves request and creates transport job", matched.status === 200 && jobId, `HTTP ${matched.status}`);
+
+  const jobs = await request("/api/transport/jobs", { headers: transportHeaders });
+  record(
+    "Producer-created transport staff sees assigned job",
+    jobs.status === 200 && jobs.data?.some((job) => job.id === jobId && job.providerCompanyId === accounts.producer.user.companyId),
+    `HTTP ${jobs.status}`
+  );
+
+  const pickedUp = await request(`/api/transport/jobs/${jobId}/advance`, {
+    method: "POST",
+    headers: transportHeaders,
+    body: JSON.stringify({
+      driverName: "Verification Driver",
+      driverPhone: "0788000888",
+      vehiclePlate: "RAB 900 V",
+      pickupQuantity: 75,
+      pickupUnit: "KG",
+      pickupCondition: "GOOD",
+      pickupNotes: "Verification pickup proof captured.",
+      pickupPhotoDataUrl: sampleImage
+    })
+  });
+  record(
+    "Transport records pickup proof",
+    pickedUp.status === 200 && pickedUp.data?.status === "PICKED_UP" && pickedUp.data?.vehiclePlate === "RAB 900 V",
+    `HTTP ${pickedUp.status}`
+  );
+
+  const inTransit = await request(`/api/transport/jobs/${jobId}/advance`, { method: "POST", headers: transportHeaders, body: JSON.stringify({}) });
+  record("Transport marks in transit", inTransit.status === 200 && inTransit.data?.status === "IN_TRANSIT", `HTTP ${inTransit.status}`);
+
+  const delivered = await request(`/api/transport/jobs/${jobId}/advance`, {
+    method: "POST",
+    headers: transportHeaders,
+    body: JSON.stringify({
+      deliveryQuantity: 75,
+      deliveryUnit: "KG",
+      deliveryCondition: "GOOD",
+      deliveryLocation: "Verification recycler workshop",
+      receiverName: "Verification Buyer",
+      receiverPhone: "0788000999",
+      deliveryNotes: "Verification delivery proof captured.",
+      deliveryPhotoDataUrl: sampleImage
+    })
+  });
+  record(
+    "Transport records delivery proof",
+    delivered.status === 200 && delivered.data?.status === "DELIVERED" && delivered.data?.receiverName === "Verification Buyer",
+    `HTTP ${delivered.status}`
+  );
+
+  const certified = await request(`/api/listings/${listingId}/confirm-receipt`, {
+    method: "POST",
+    headers: recyclerHeaders,
+    body: JSON.stringify({
+      receivedQuantity: 75,
+      receivedUnit: "KG",
+      receiptCondition: "GOOD",
+      receiverName: "Verification Buyer",
+      receiverPhone: "0788000999",
+      receiptLocation: "Verification recycler workshop",
+      receiptNotes: "Final receipt confirmed during automated verification.",
+      finalApproval: true
+    })
+  });
+  record("Recycler confirms receipt and receives certificate", certified.status === 200 && certified.data?.id && certified.data?.receiptCondition === "GOOD", `HTTP ${certified.status}`);
+
+  const publicProducersAfterCertification = await request("/api/public/producers");
+  const publicProducerProfile = publicProducersAfterCertification.data?.find((company) => company.contactEmail === "industry@wastetovalue.rw");
+  record(
+    "Public producer profile shows supplied materials and certificates",
+    publicProducersAfterCertification.status === 200 && publicProducerProfile?.materials?.some((item) => item.id === listingId) && Number(publicProducerProfile.certificateCount) >= 1,
+    `HTTP ${publicProducersAfterCertification.status}`
+  );
+
+  const certificates = await request("/api/recycler/certificates", { headers: recyclerHeaders });
+  const generatedCertificate = certificates.data?.find((item) => item.id === certified.data.id);
+  record(
+    "Recycler certificate list includes movement proof",
+    certificates.status === 200 && generatedCertificate?.listing?.job?.vehiclePlate === "RAB 900 V",
+    `HTTP ${certificates.status}`
+  );
+
+  const forbidden = await request("/api/admin/reports", { headers: recyclerHeaders });
+  record("Recycler cannot open admin reports", forbidden.status === 403, `HTTP ${forbidden.status}`);
 
   const report = {
     system: "Waste-to-Value Rwanda",

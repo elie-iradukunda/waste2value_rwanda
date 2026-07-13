@@ -7,40 +7,88 @@ const TransportJob = sequelize.define("TransportJob", {
     primaryKey: true,
     autoIncrement: true
   },
-  transactionId: {
-    type: DataTypes.INTEGER,
-    allowNull: false
-  },
-  transporterCompanyId: {
-    type: DataTypes.INTEGER
+  status: {
+    type: DataTypes.ENUM("WAITING", "PICKED_UP", "IN_TRANSIT", "DELIVERED"),
+    defaultValue: "WAITING"
   },
   pickupLocation: {
     type: DataTypes.STRING,
     allowNull: false
   },
-  deliveryLocation: {
-    type: DataTypes.STRING,
-    allowNull: false
+  dropoffLocation: {
+    type: DataTypes.STRING
   },
-  pickupDate: {
-    type: DataTypes.DATEONLY
+  driverName: {
+    type: DataTypes.STRING
   },
-  deliveryDate: {
-    type: DataTypes.DATEONLY
+  driverPhone: {
+    type: DataTypes.STRING
   },
-  transportCost: {
+  vehiclePlate: {
+    type: DataTypes.STRING
+  },
+  pickupQuantity: {
     type: DataTypes.DECIMAL(12, 2)
   },
-  status: {
-    type: DataTypes.ENUM("pending", "accepted", "picked_up", "in_transit", "delivered", "confirmed", "cancelled"),
-    defaultValue: "pending"
+  pickupUnit: {
+    type: DataTypes.STRING(12)
   },
-  pickupProofImage: {
+  pickupCondition: {
+    type: DataTypes.STRING(32)
+  },
+  pickupNotes: {
+    type: DataTypes.TEXT
+  },
+  pickupPhotoDataUrl: {
+    type: DataTypes.TEXT("long")
+  },
+  pickedUpAt: {
+    type: DataTypes.DATE
+  },
+  deliveryQuantity: {
+    type: DataTypes.DECIMAL(12, 2)
+  },
+  deliveryUnit: {
+    type: DataTypes.STRING(12)
+  },
+  deliveryCondition: {
+    type: DataTypes.STRING(32)
+  },
+  deliveryLocation: {
     type: DataTypes.STRING
   },
-  deliveryProofImage: {
+  receiverName: {
     type: DataTypes.STRING
+  },
+  receiverPhone: {
+    type: DataTypes.STRING
+  },
+  deliveryNotes: {
+    type: DataTypes.TEXT
+  },
+  deliveryPhotoDataUrl: {
+    type: DataTypes.TEXT("long")
+  },
+  deliveredAt: {
+    type: DataTypes.DATE
+  },
+  listingId: {
+    type: DataTypes.INTEGER,
+    allowNull: false,
+    unique: true
+  },
+  providerCompanyId: {
+    type: DataTypes.INTEGER,
+    allowNull: true
+  },
+  handledById: {
+    type: DataTypes.INTEGER,
+    allowNull: true
   }
+}, {
+  indexes: [
+    { fields: ["status"] }
+  ]
 });
 
 module.exports = TransportJob;

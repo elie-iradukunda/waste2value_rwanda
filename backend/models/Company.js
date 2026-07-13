@@ -7,47 +7,42 @@ const Company = sequelize.define("Company", {
     primaryKey: true,
     autoIncrement: true
   },
-  userId: {
-    type: DataTypes.INTEGER,
-    allowNull: false
-  },
-  companyName: {
+  name: {
     type: DataTypes.STRING,
     allowNull: false
   },
-  companyType: {
-    type: DataTypes.ENUM("industry", "buyer", "transporter", "regulator", "admin"),
+  type: {
+    type: DataTypes.ENUM("PRODUCER", "RECYCLER", "TRANSPORT"),
     allowNull: false
   },
-  tinNumber: {
-    type: DataTypes.STRING
-  },
-  email: {
+  contactEmail: {
     type: DataTypes.STRING,
     validate: { isEmail: true }
   },
   phone: {
     type: DataTypes.STRING
   },
-  district: {
+  registrationNumber: {
     type: DataTypes.STRING
   },
-  sector: {
+  businessLocation: {
     type: DataTypes.STRING
   },
-  address: {
+  producedMaterials: {
+    type: DataTypes.TEXT
+  },
+  productionDescription: {
+    type: DataTypes.TEXT
+  },
+  rdbDocumentName: {
     type: DataTypes.STRING
   },
-  verificationStatus: {
-    type: DataTypes.ENUM("pending", "verified", "rejected"),
-    defaultValue: "pending"
+  rdbDocumentDataUrl: {
+    type: DataTypes.TEXT("long")
   },
-  licenseDocument: {
-    type: DataTypes.STRING
-  },
-  sustainabilityScore: {
-    type: DataTypes.INTEGER,
-    defaultValue: 0
+  status: {
+    type: DataTypes.ENUM("PENDING", "APPROVED", "REJECTED"),
+    defaultValue: "PENDING"
   }
 });
 

@@ -1,69 +1,56 @@
 const sequelize = require("../config/database");
-const User = require("./User");
 const Company = require("./Company");
-const MaterialCategory = require("./MaterialCategory");
-const WasteMaterial = require("./WasteMaterial");
-const MaterialImage = require("./MaterialImage");
-const MaterialRequest = require("./MaterialRequest");
-const Transaction = require("./Transaction");
+const User = require("./User");
+const Category = require("./Category");
+const WasteListing = require("./WasteListing");
+const WasteRequest = require("./WasteRequest");
 const TransportJob = require("./TransportJob");
 const Certificate = require("./Certificate");
-const SustainabilityScore = require("./SustainabilityScore");
-const Notification = require("./Notification");
-const Review = require("./Review");
+const Transaction = require("./Transaction");
 
-User.hasOne(Company, { foreignKey: "userId", as: "company" });
-Company.belongsTo(User, { foreignKey: "userId", as: "owner" });
+Company.hasMany(User, { foreignKey: "companyId", as: "users" });
+User.belongsTo(Company, { foreignKey: "companyId", as: "company" });
 
-Company.hasMany(WasteMaterial, { foreignKey: "companyId", as: "materials" });
-WasteMaterial.belongsTo(Company, { foreignKey: "companyId", as: "seller" });
+Company.hasMany(WasteListing, { foreignKey: "producerCompanyId", as: "producedListings" });
+WasteListing.belongsTo(Company, { foreignKey: "producerCompanyId", as: "producerCompany" });
+User.hasMany(WasteListing, { foreignKey: "createdById", as: "listings" });
+WasteListing.belongsTo(User, { foreignKey: "createdById", as: "createdBy" });
 
-MaterialCategory.hasMany(WasteMaterial, { foreignKey: "categoryId", as: "materials" });
-WasteMaterial.belongsTo(MaterialCategory, { foreignKey: "categoryId", as: "category" });
+Category.hasMany(WasteListing, { foreignKey: "categoryId", as: "listings" });
+WasteListing.belongsTo(Category, { foreignKey: "categoryId", as: "category" });
 
-WasteMaterial.hasMany(MaterialImage, { foreignKey: "materialId", as: "images" });
-MaterialImage.belongsTo(WasteMaterial, { foreignKey: "materialId", as: "material" });
+WasteListing.hasMany(WasteRequest, { foreignKey: "listingId", as: "requests" });
+WasteRequest.belongsTo(WasteListing, { foreignKey: "listingId", as: "listing" });
+Company.hasMany(WasteRequest, { foreignKey: "recyclerCompanyId", as: "requests" });
+WasteRequest.belongsTo(Company, { foreignKey: "recyclerCompanyId", as: "recyclerCompany" });
+User.hasMany(WasteRequest, { foreignKey: "createdById", as: "requests" });
+WasteRequest.belongsTo(User, { foreignKey: "createdById", as: "createdBy" });
 
-WasteMaterial.hasMany(MaterialRequest, { foreignKey: "materialId", as: "requests" });
-MaterialRequest.belongsTo(WasteMaterial, { foreignKey: "materialId", as: "material" });
-MaterialRequest.belongsTo(Company, { foreignKey: "buyerCompanyId", as: "buyer" });
-MaterialRequest.belongsTo(Company, { foreignKey: "sellerCompanyId", as: "seller" });
+WasteListing.hasOne(TransportJob, { foreignKey: "listingId", as: "job" });
+TransportJob.belongsTo(WasteListing, { foreignKey: "listingId", as: "listing" });
+Company.hasMany(TransportJob, { foreignKey: "providerCompanyId", as: "jobs" });
+TransportJob.belongsTo(Company, { foreignKey: "providerCompanyId", as: "providerCompany" });
+User.hasMany(TransportJob, { foreignKey: "handledById", as: "jobs" });
+TransportJob.belongsTo(User, { foreignKey: "handledById", as: "handledBy" });
 
-MaterialRequest.hasOne(Transaction, { foreignKey: "requestId", as: "transaction" });
-Transaction.belongsTo(MaterialRequest, { foreignKey: "requestId", as: "request" });
-Transaction.belongsTo(WasteMaterial, { foreignKey: "materialId", as: "material" });
-Transaction.belongsTo(Company, { foreignKey: "buyerCompanyId", as: "buyer" });
-Transaction.belongsTo(Company, { foreignKey: "sellerCompanyId", as: "seller" });
+WasteListing.hasOne(Certificate, { foreignKey: "listingId", as: "certificate" });
+Certificate.belongsTo(WasteListing, { foreignKey: "listingId", as: "listing" });
+Company.hasMany(Certificate, { foreignKey: "producerCompanyId", as: "certsAsProducer" });
+Certificate.belongsTo(Company, { foreignKey: "producerCompanyId", as: "producerCompany" });
+Company.hasMany(Certificate, { foreignKey: "recyclerCompanyId", as: "certsAsRecycler" });
+Certificate.belongsTo(Company, { foreignKey: "recyclerCompanyId", as: "recyclerCompany" });
 
-Transaction.hasOne(TransportJob, { foreignKey: "transactionId", as: "transportJob" });
-TransportJob.belongsTo(Transaction, { foreignKey: "transactionId", as: "transaction" });
-TransportJob.belongsTo(Company, { foreignKey: "transporterCompanyId", as: "transporter" });
-
-Transaction.hasOne(Certificate, { foreignKey: "transactionId", as: "certificate" });
-Certificate.belongsTo(Transaction, { foreignKey: "transactionId", as: "transaction" });
-
-Company.hasMany(SustainabilityScore, { foreignKey: "companyId", as: "scores" });
-SustainabilityScore.belongsTo(Company, { foreignKey: "companyId", as: "company" });
-
-User.hasMany(Notification, { foreignKey: "userId", as: "notifications" });
-Notification.belongsTo(User, { foreignKey: "userId", as: "user" });
-
-Review.belongsTo(Company, { foreignKey: "reviewerCompanyId", as: "reviewer" });
-Review.belongsTo(Company, { foreignKey: "reviewedCompanyId", as: "reviewed" });
-Review.belongsTo(Transaction, { foreignKey: "transactionId", as: "transaction" });
+User.hasMany(Transaction, { foreignKey: "actorId", as: "transactions" });
+Transaction.belongsTo(User, { foreignKey: "actorId", as: "actor" });
 
 module.exports = {
   sequelize,
-  User,
   Company,
-  MaterialCategory,
-  WasteMaterial,
-  MaterialImage,
-  MaterialRequest,
-  Transaction,
+  User,
+  Category,
+  WasteListing,
+  WasteRequest,
   TransportJob,
   Certificate,
-  SustainabilityScore,
-  Notification,
-  Review
+  Transaction
 };

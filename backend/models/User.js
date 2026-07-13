@@ -7,7 +7,7 @@ const User = sequelize.define("User", {
     primaryKey: true,
     autoIncrement: true
   },
-  fullName: {
+  name: {
     type: DataTypes.STRING,
     allowNull: false
   },
@@ -17,32 +17,17 @@ const User = sequelize.define("User", {
     unique: true,
     validate: { isEmail: true }
   },
-  phone: {
-    type: DataTypes.STRING
-  },
-  password: {
+  passwordHash: {
     type: DataTypes.STRING,
     allowNull: false
   },
   role: {
-    type: DataTypes.ENUM("admin", "industry", "buyer", "transporter", "regulator"),
+    type: DataTypes.ENUM("ADMIN", "PRODUCER", "RECYCLER", "TRANSPORT"),
     allowNull: false
   },
-  status: {
-    type: DataTypes.ENUM("pending", "active", "suspended"),
-    defaultValue: "pending"
-  },
-  profileImage: {
-    type: DataTypes.STRING
-  },
-  resetCode: {
-    type: DataTypes.STRING
-  },
-  resetCodeExpires: {
-    type: DataTypes.DATE
-  },
-  statusReason: {
-    type: DataTypes.TEXT
+  companyId: {
+    type: DataTypes.INTEGER,
+    allowNull: true
   }
 });
 

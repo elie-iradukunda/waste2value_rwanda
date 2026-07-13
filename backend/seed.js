@@ -1,144 +1,294 @@
 const bcrypt = require("bcryptjs");
 require("dotenv").config();
-const {
-  sequelize,
-  User,
-  Company,
-  MaterialCategory,
-  WasteMaterial,
-  MaterialRequest,
-  Transaction,
-  TransportJob,
-  Certificate,
-  SustainabilityScore,
-  Notification,
-  Review
-} = require("./models");
+const { sequelize, Company, User, Category, WasteListing, WasteRequest, TransportJob, Certificate, Transaction } = require("./models");
+
+const DEMO_PASSWORD = "password123";
+
+function materialImage(label, color) {
+  const svg = `
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 540">
+      <rect width="900" height="540" fill="#101827"/>
+      <rect x="48" y="48" width="804" height="444" rx="36" fill="${color}" opacity="0.18"/>
+      <circle cx="694" cy="164" r="96" fill="${color}" opacity="0.48"/>
+      <path d="M128 412c90-120 156-144 250-66 72 60 130 68 212 6 72-54 128-58 222 26v114H128z" fill="${color}" opacity="0.7"/>
+      <text x="86" y="118" fill="#f8fafc" font-family="Arial, sans-serif" font-size="42" font-weight="700">${label}</text>
+      <text x="88" y="172" fill="#cbd5e1" font-family="Arial, sans-serif" font-size="24">Waste to Value material photo</text>
+    </svg>
+  `.trim();
+  return `data:image/svg+xml;base64,${Buffer.from(svg).toString("base64")}`;
+}
+
+function materialMedia(label, color) {
+  const gallery = [
+    materialImage(label, color),
+    materialImage(`${label} - Sorted`, color),
+    materialImage(`${label} - Packed`, color)
+  ];
+  return { imageDataUrl: gallery[0], imageGallery: gallery };
+}
 
 async function seed() {
   await sequelize.authenticate();
+  await sequelize.query("SET FOREIGN_KEY_CHECKS = 0");
   await sequelize.sync({ force: true });
-  console.log("Database reset. Seeding Waste-to-Value Rwanda demo data...");
+  await sequelize.query("SET FOREIGN_KEY_CHECKS = 1");
+  console.log("Database reset. Seeding Waste to Value demo data...");
 
-  const passwordHash = await bcrypt.hash("demo123", 10);
+  const passwordHash = await bcrypt.hash(DEMO_PASSWORD, 10);
 
-  const categories = await MaterialCategory.bulkCreate([
-    { name: "Plastic", description: "Plastic scraps, flakes, packaging and clean offcuts.", icon: "recycle" },
-    { name: "Metal", description: "Metal offcuts, dust and fabrication leftovers.", icon: "factory" },
-    { name: "Wood", description: "Wood residues, sawdust and furniture offcuts.", icon: "package" },
-    { name: "Paper", description: "Packaging paper, cartons and office paper.", icon: "file" },
-    { name: "Textile", description: "Fabric leftovers and production remnants.", icon: "shirt" },
-    { name: "Organic", description: "Reusable organic by-products.", icon: "leaf" }
+  const categories = await Category.bulkCreate([
+    { name: "Plastic" },
+    { name: "Metal" },
+    { name: "Paper" },
+    { name: "Organic Waste" },
+    { name: "Glass" },
+    { name: "Electronics" }
   ]);
-  const categoryByName = Object.fromEntries(categories.map((category) => [category.name, category]));
+  const cat = Object.fromEntries(categories.map((category) => [category.name, category]));
 
-  const users = {
-    admin: await User.create({ fullName: "Alain Fred NIYOGUSHIMWA", email: "admin@wastetovalue.rw", phone: "0788000001", password: passwordHash, role: "admin", status: "active" }),
-    industry: await User.create({ fullName: "Eric Nkurunziza", email: "industry@wastetovalue.rw", phone: "0788000002", password: passwordHash, role: "industry", status: "active" }),
-    industry2: await User.create({ fullName: "Claudine Uwase", email: "industry2@wastetovalue.rw", phone: "0788000006", password: passwordHash, role: "industry", status: "active" }),
-    buyer: await User.create({ fullName: "Grace Mukamana", email: "buyer@wastetovalue.rw", phone: "0788000003", password: passwordHash, role: "buyer", status: "active" }),
-    buyer2: await User.create({ fullName: "Jean Bosco Habimana", email: "buyer2@wastetovalue.rw", phone: "0788000007", password: passwordHash, role: "buyer", status: "active" }),
-    transporter: await User.create({ fullName: "Patrick Habimana", email: "transport@wastetovalue.rw", phone: "0788000004", password: passwordHash, role: "transporter", status: "active" }),
-    regulator: await User.create({ fullName: "Divine Iradukunda", email: "regulator@wastetovalue.rw", phone: "0788000005", password: passwordHash, role: "regulator", status: "active" })
-  };
+  const producerCo = await Company.create({
+    name: "Kigali Plastics Ltd",
+    type: "PRODUCER",
+    contactEmail: "industry@wastetovalue.rw",
+    phone: "0788000002",
+    status: "APPROVED",
+    registrationNumber: "RDB-102938-KPL",
+    businessLocation: "Gikondo, Kigali",
+    producedMaterials: "Plastic packaging, PET bottles, HDPE containers, industrial plastic offcuts",
+    productionDescription: "Manufactures and sorts plastic packaging products that generate reusable plastic scraps and clean production offcuts.",
+    rdbDocumentName: "Kigali Plastics RDB certificate.png",
+    rdbDocumentDataUrl: materialImage("RDB Certificate", "#059669")
+  });
+  const recyclerCo = await Company.create({ name: "Eco Recycle Rwanda", type: "RECYCLER", contactEmail: "buyer@wastetovalue.rw", phone: "0788000003", status: "APPROVED" });
 
-  const companies = {
-    admin: await Company.create({ userId: users.admin.id, companyName: "Waste-to-Value Rwanda", companyType: "admin", district: "Gasabo", sector: "Kacyiru", verificationStatus: "verified", sustainabilityScore: 100, email: users.admin.email }),
-    industry: await Company.create({ userId: users.industry.id, companyName: "Kigali Plastics Ltd", companyType: "industry", district: "Kicukiro", sector: "Gikondo", address: "Kigali Special Economic Zone", verificationStatus: "verified", sustainabilityScore: 86, email: users.industry.email }),
-    industry2: await Company.create({ userId: users.industry2.id, companyName: "Kigali Furniture Works", companyType: "industry", district: "Gasabo", sector: "Remera", address: "Remera production workshop", verificationStatus: "pending", sustainabilityScore: 71, email: users.industry2.email }),
-    buyer: await Company.create({ userId: users.buyer.id, companyName: "Eco Recycle Rwanda", companyType: "buyer", district: "Nyarugenge", sector: "Muhima", address: "Muhima recycling yard", verificationStatus: "verified", sustainabilityScore: 82, email: users.buyer.email }),
-    buyer2: await Company.create({ userId: users.buyer2.id, companyName: "FabLab SME", companyType: "buyer", district: "Nyarugenge", sector: "Nyamirambo", address: "Nyamirambo workshop", verificationStatus: "verified", sustainabilityScore: 68, email: users.buyer2.email }),
-    transporter: await Company.create({ userId: users.transporter.id, companyName: "GreenMove Logistics", companyType: "transporter", district: "Kicukiro", sector: "Gikondo", address: "Gikondo depot", verificationStatus: "verified", sustainabilityScore: 79, email: users.transporter.email }),
-    regulator: await Company.create({ userId: users.regulator.id, companyName: "COPED Group Rwanda", companyType: "regulator", district: "Gasabo", sector: "Kacyiru", address: "Utexrwa Road, KG 15 Avenue, Kacyiru", verificationStatus: "verified", sustainabilityScore: 92, email: users.regulator.email })
-  };
-
-  const materials = await WasteMaterial.bulkCreate([
-    { companyId: companies.industry.id, categoryId: categoryByName.Plastic.id, title: "Plastic scraps", description: "Sorted plastic scraps from industrial packaging production.", quantity: 2400, unit: "kg", condition: "Clean, mixed, dry", price: 180, district: "Kicukiro", sector: "Gikondo", pickupAddress: "Kigali Special Economic Zone", latitude: -1.969, longitude: 30.104, status: "available" },
-    { companyId: companies.industry.id, categoryId: categoryByName.Metal.id, title: "Metal offcuts", description: "Steel and aluminum offcuts suitable for local fabrication.", quantity: 700, unit: "kg", condition: "Clean fabrication offcuts", price: 0, district: "Kicukiro", sector: "Gikondo", pickupAddress: "Gikondo fabrication yard", latitude: -1.966, longitude: 30.106, status: "available" },
-    { companyId: companies.industry2.id, categoryId: categoryByName.Wood.id, title: "Wood residues", description: "Furniture production residue ready for briquette processing.", quantity: 1200, unit: "kg", condition: "Dry sawdust and offcuts", price: 60, district: "Gasabo", sector: "Remera", pickupAddress: "Remera production workshop", latitude: -1.956, longitude: 30.113, status: "available" },
-    { companyId: companies.industry2.id, categoryId: categoryByName.Textile.id, title: "Textile leftovers", description: "Clean textile leftovers for crafts, insulation or padding.", quantity: 450, unit: "kg", condition: "Mixed clean fabric", price: 0, isFree: true, district: "Nyarugenge", sector: "Nyamirambo", pickupAddress: "Nyamirambo tailoring workshop", latitude: -1.984, longitude: 30.044, status: "available" },
-    { companyId: companies.industry.id, categoryId: categoryByName.Paper.id, title: "Packaging paper offcuts", description: "Clean cardboard and packaging paper offcuts from production.", quantity: 600, unit: "kg", condition: "Clean, dry", price: 40, district: "Kicukiro", sector: "Gikondo", pickupAddress: "Kigali Special Economic Zone", status: "pending_review" },
-    { companyId: companies.industry2.id, categoryId: categoryByName.Organic.id, title: "Organic sawmill residue", description: "Organic residue from wood processing, suitable for composting.", quantity: 900, unit: "kg", condition: "Fresh, mixed", price: 0, isFree: true, district: "Gasabo", sector: "Remera", pickupAddress: "Remera production workshop", status: "pending_review" }
-  ]);
-
-  const [plasticScraps, metalOffcuts, woodResidues] = materials;
-
-  const requests = await MaterialRequest.bulkCreate([
-    { materialId: plasticScraps.id, buyerCompanyId: companies.buyer.id, sellerCompanyId: companies.industry.id, requestedQuantity: 1500, message: "Interested in 1.5 tons of clean plastic scraps for recycling.", offeredPrice: 270000, status: "approved" },
-    { materialId: metalOffcuts.id, buyerCompanyId: companies.buyer2.id, sellerCompanyId: companies.industry.id, requestedQuantity: 500, message: "FabLab SME needs metal offcuts for fabrication training.", status: "pending" },
-    { materialId: woodResidues.id, buyerCompanyId: companies.buyer.id, sellerCompanyId: companies.industry2.id, requestedQuantity: 1200, offeredPrice: 72000, message: "Requesting wood residue for briquette production.", status: "negotiating" }
-  ]);
-
-  const approvedRequest = requests[0];
-  plasticScraps.status = "reserved";
-  await plasticScraps.save();
-
-  const transaction = await Transaction.create({
-    requestId: approvedRequest.id,
-    materialId: plasticScraps.id,
-    buyerCompanyId: companies.buyer.id,
-    sellerCompanyId: companies.industry.id,
-    quantity: 1500,
-    totalAmount: 270000,
-    paymentStatus: "paid",
-    transactionStatus: "delivered"
+  await Company.create({
+    name: "Kigali Furniture Works",
+    type: "PRODUCER",
+    contactEmail: "info@kfw.rw",
+    phone: "0788000010",
+    status: "PENDING",
+    registrationNumber: "RDB-774411-KFW",
+    businessLocation: "Kimironko, Kigali",
+    producedMaterials: "Wood furniture, cardboard packaging, sawdust, textile offcuts",
+    productionDescription: "Furniture workshop requesting producer approval to list reusable wood, packaging, and sawdust waste streams.",
+    rdbDocumentName: "Kigali Furniture Works RDB certificate.png",
+    rdbDocumentDataUrl: materialImage("RDB Certificate", "#d97706")
   });
 
-  const transportJob = await TransportJob.create({
-    transactionId: transaction.id,
-    transporterCompanyId: companies.transporter.id,
-    pickupLocation: "Kigali Special Economic Zone",
-    deliveryLocation: "Muhima recycling yard",
-    pickupDate: new Date(),
-    transportCost: 42000,
-    status: "delivered"
+  const admin = await User.create({ name: "Alain Fred NIYOGUSHIMWA", email: "admin@wastetovalue.rw", passwordHash, role: "ADMIN", companyId: null });
+  const producer = await User.create({ name: "Eric Nkurunziza", email: "industry@wastetovalue.rw", passwordHash, role: "PRODUCER", companyId: producerCo.id });
+  const recyclerUser = await User.create({ name: "Grace Mukamana", email: "buyer@wastetovalue.rw", passwordHash, role: "RECYCLER", companyId: recyclerCo.id });
+  const transportUser = await User.create({ name: "Patrick Habimana", email: "transport@wastetovalue.rw", passwordHash, role: "TRANSPORT", companyId: producerCo.id });
+
+  const plasticScraps = await WasteListing.create({
+    title: "Plastic Scraps",
+    description: "Sorted plastic scraps from industrial packaging production.",
+    ...materialMedia("Plastic Scraps", "#2563eb"),
+    quantity: 2400,
+    unit: "KG",
+    priceAmount: 120,
+    currency: "RWF",
+    priceType: "PER_UNIT",
+    location: "Gikondo, Kigali",
+    status: "APPROVED",
+    quality: "A",
+    categoryId: cat.Plastic.id,
+    producerCompanyId: producerCo.id,
+    createdById: producer.id
+  });
+  const metalOffcuts = await WasteListing.create({
+    title: "Metal Offcuts",
+    description: "Steel and aluminum offcuts suitable for local fabrication.",
+    ...materialMedia("Metal Offcuts", "#64748b"),
+    quantity: 700,
+    unit: "KG",
+    priceAmount: 650,
+    currency: "RWF",
+    priceType: "PER_UNIT",
+    location: "Gikondo, Kigali",
+    status: "APPROVED",
+    quality: "B",
+    categoryId: cat.Metal.id,
+    producerCompanyId: producerCo.id,
+    createdById: producer.id
+  });
+  await WasteListing.create({
+    title: "Packaging Paper Offcuts",
+    description: "Clean cardboard and packaging paper offcuts from production.",
+    ...materialMedia("Paper Offcuts", "#d97706"),
+    quantity: 600,
+    unit: "KG",
+    priceAmount: 80,
+    currency: "RWF",
+    priceType: "PER_UNIT",
+    location: "Kigali Special Economic Zone",
+    status: "PENDING_APPROVAL",
+    categoryId: cat.Paper.id,
+    producerCompanyId: producerCo.id,
+    createdById: producer.id
+  });
+  const cartons = await WasteListing.create({
+    title: "Cartons and Boxes",
+    description: "Used cartons and boxes, folded and ready for pickup.",
+    ...materialMedia("Cartons and Boxes", "#ca8a04"),
+    quantity: 800,
+    unit: "KG",
+    priceAmount: 60000,
+    currency: "RWF",
+    priceType: "TOTAL",
+    location: "Kimironko, Kigali",
+    status: "MATCHED",
+    categoryId: cat.Paper.id,
+    producerCompanyId: producerCo.id,
+    createdById: producer.id
+  });
+  const aluminumCans = await WasteListing.create({
+    title: "Aluminum Cans",
+    description: "Crushed aluminum cans, sorted and bagged.",
+    ...materialMedia("Aluminum Cans", "#475569"),
+    quantity: 300,
+    unit: "KG",
+    priceAmount: 900,
+    currency: "RWF",
+    priceType: "PER_UNIT",
+    location: "Nyabugogo, Kigali",
+    status: "IN_TRANSIT",
+    categoryId: cat.Metal.id,
+    producerCompanyId: producerCo.id,
+    createdById: producer.id
+  });
+  const compost = await WasteListing.create({
+    title: "Organic Compost Waste",
+    description: "Organic residue suitable for composting.",
+    ...materialMedia("Organic Compost", "#059669"),
+    quantity: 1200,
+    unit: "KG",
+    priceAmount: 45,
+    currency: "RWF",
+    priceType: "PER_UNIT",
+    location: "Kicukiro, Kigali",
+    status: "DELIVERED",
+    categoryId: cat["Organic Waste"].id,
+    producerCompanyId: producerCo.id,
+    createdById: producer.id
+  });
+  const glassBottles = await WasteListing.create({
+    title: "Glass Bottles",
+    description: "Clean glass bottles, sorted by color.",
+    ...materialMedia("Glass Bottles", "#0891b2"),
+    quantity: 500,
+    unit: "KG",
+    priceAmount: 150,
+    currency: "RWF",
+    priceType: "PER_UNIT",
+    location: "Remera, Kigali",
+    status: "CERTIFIED",
+    categoryId: cat.Glass.id,
+    producerCompanyId: producerCo.id,
+    createdById: producer.id
+  });
+
+  await WasteRequest.create({ listingId: metalOffcuts.id, recyclerCompanyId: recyclerCo.id, createdById: recyclerUser.id, requestedQuantity: 450, requestedUnit: "KG", proposedPrice: 650, contactName: "Grace Mukamana", contactPhone: "0788000003", preferredPickupDate: new Date(), deliveryLocation: "Eco Recycle Rwanda workshop, Muhima", message: "We would like to collect this for our workshop.", status: "PENDING" });
+  await WasteRequest.create({ listingId: cartons.id, recyclerCompanyId: recyclerCo.id, createdById: recyclerUser.id, requestedQuantity: 800, requestedUnit: "KG", proposedPrice: 60000, contactName: "Grace Mukamana", contactPhone: "0788000003", preferredPickupDate: new Date(), deliveryLocation: "Eco Recycle Rwanda workshop, Muhima", status: "APPROVED", decisionReason: "Approved because the recycler can collect this material within the requested pickup window." });
+  await WasteRequest.create({ listingId: aluminumCans.id, recyclerCompanyId: recyclerCo.id, createdById: recyclerUser.id, requestedQuantity: 300, requestedUnit: "KG", proposedPrice: 900, contactName: "Grace Mukamana", contactPhone: "0788000003", preferredPickupDate: new Date(), deliveryLocation: "Eco Recycle Rwanda workshop, Muhima", status: "APPROVED", decisionReason: "Approved because the recycler profile matches metal reuse requirements." });
+  await WasteRequest.create({ listingId: compost.id, recyclerCompanyId: recyclerCo.id, createdById: recyclerUser.id, requestedQuantity: 1200, requestedUnit: "KG", proposedPrice: 45, contactName: "Grace Mukamana", contactPhone: "0788000003", preferredPickupDate: new Date(), deliveryLocation: "Eco Recycle Rwanda composting site", status: "APPROVED", decisionReason: "Approved for compost processing and delivery confirmation." });
+  await WasteRequest.create({ listingId: glassBottles.id, recyclerCompanyId: recyclerCo.id, createdById: recyclerUser.id, requestedQuantity: 500, requestedUnit: "KG", proposedPrice: 150, contactName: "Grace Mukamana", contactPhone: "0788000003", preferredPickupDate: new Date(), deliveryLocation: "Eco Recycle Rwanda glass sorting site", status: "APPROVED", decisionReason: "Approved after checking recycler capacity and collection readiness." });
+
+  await TransportJob.create({ listingId: cartons.id, status: "WAITING", pickupLocation: cartons.location, dropoffLocation: "Eco Recycle Rwanda workshop, Muhima", providerCompanyId: producerCo.id });
+  await TransportJob.create({
+    listingId: aluminumCans.id,
+    status: "IN_TRANSIT",
+    pickupLocation: aluminumCans.location,
+    dropoffLocation: "Eco Recycle Rwanda workshop, Muhima",
+    providerCompanyId: producerCo.id,
+    handledById: transportUser.id,
+    driverName: "Patrick Habimana",
+    driverPhone: "0788000004",
+    vehiclePlate: "RAB 245 G",
+    pickupQuantity: aluminumCans.quantity,
+    pickupUnit: aluminumCans.unit,
+    pickupCondition: "GOOD",
+    pickupNotes: "Bags counted and loaded from Nyabugogo collection point.",
+    pickedUpAt: new Date()
+  });
+  await TransportJob.create({
+    listingId: compost.id,
+    status: "DELIVERED",
+    pickupLocation: compost.location,
+    dropoffLocation: "Eco Recycle Rwanda compost bay",
+    providerCompanyId: producerCo.id,
+    handledById: transportUser.id,
+    driverName: "Patrick Habimana",
+    driverPhone: "0788000004",
+    vehiclePlate: "RAC 831 P",
+    pickupQuantity: compost.quantity,
+    pickupUnit: compost.unit,
+    pickupCondition: "GOOD",
+    pickupNotes: "Organic residue loaded in sealed sacks.",
+    deliveryQuantity: compost.quantity,
+    deliveryUnit: compost.unit,
+    deliveryCondition: "GOOD",
+    deliveryLocation: "Eco Recycle Rwanda compost bay",
+    receiverName: "Grace Mukamana",
+    receiverPhone: "0788000003",
+    deliveryNotes: "Delivered without quantity mismatch.",
+    pickedUpAt: new Date(),
+    deliveredAt: new Date()
+  });
+  await TransportJob.create({
+    listingId: glassBottles.id,
+    status: "DELIVERED",
+    pickupLocation: glassBottles.location,
+    dropoffLocation: "Eco Recycle Rwanda glass sorting line",
+    providerCompanyId: producerCo.id,
+    handledById: transportUser.id,
+    driverName: "Patrick Habimana",
+    driverPhone: "0788000004",
+    vehiclePlate: "RAD 114 K",
+    pickupQuantity: glassBottles.quantity,
+    pickupUnit: glassBottles.unit,
+    pickupCondition: "GOOD",
+    pickupNotes: "Crates checked before loading.",
+    deliveryQuantity: glassBottles.quantity,
+    deliveryUnit: glassBottles.unit,
+    deliveryCondition: "GOOD",
+    deliveryLocation: "Eco Recycle Rwanda glass sorting line",
+    receiverName: "Grace Mukamana",
+    receiverPhone: "0788000003",
+    deliveryNotes: "Received for color sorting.",
+    pickedUpAt: new Date(),
+    deliveredAt: new Date()
   });
 
   await Certificate.create({
-    transactionId: transaction.id,
-    certificateNumber: `WTV-RW-${new Date().getFullYear()}-${100000 + transaction.id}`,
-    materialType: plasticScraps.title,
-    quantityReused: "1500 kg",
-    sellerCompanyName: companies.industry.companyName,
-    buyerCompanyName: companies.buyer.companyName,
-    transporterName: companies.transporter.companyName,
-    issueDate: new Date(),
-    verificationStatus: "verified"
+    id: `WTV-CERT-${new Date().getFullYear()}-1001`,
+    listingId: glassBottles.id,
+    quantity: glassBottles.quantity,
+    unit: glassBottles.unit,
+    category: cat.Glass.name,
+    receiptCondition: "GOOD",
+    receiverName: "Grace Mukamana",
+    receiverPhone: "0788000003",
+    receiptLocation: "Eco Recycle Rwanda glass sorting site",
+    receiptNotes: "Material received, checked, and approved for recycling certification.",
+    receiptConfirmedAt: new Date(),
+    producerCompanyId: producerCo.id,
+    recyclerCompanyId: recyclerCo.id
   });
 
-  await SustainabilityScore.create({
-    companyId: companies.industry.id,
-    reuseRate: 88,
-    completedTransactions: 12,
-    totalWasteReused: 4600,
-    listingQuality: 72,
-    deliveryCompletion: 94,
-    ratingScore: 86,
-    finalScore: 86,
-    level: "Gold",
-    month: new Date().getMonth() + 1,
-    year: new Date().getFullYear()
-  });
-
-  await Notification.bulkCreate([
-    { userId: users.industry.id, title: "Material request approved", message: "Your plastic scraps listing was requested and approved by Eco Recycle Rwanda.", type: "request", isRead: true },
-    { userId: users.buyer.id, title: "Certificate generated", message: `Certificate for plastic scraps reuse is ready for verification.`, type: "certificate", isRead: false },
-    { userId: users.transporter.id, title: "Delivery completed", message: "Delivery of plastic scraps to Muhima recycling yard was confirmed.", type: "delivery", isRead: false },
-    { userId: users.admin.id, title: "New waste listing submitted", message: "Packaging paper offcuts is waiting for admin approval.", type: "system", isRead: false },
-    { userId: users.regulator.id, title: "Waste diversion recorded", message: "1,500 kg of plastic scraps diverted from landfill and confirmed for reuse.", type: "system", isRead: false }
+  await Transaction.bulkCreate([
+    { type: "LISTING_APPROVED", message: "Plastic Scraps approved (quality A)", actorId: admin.id, listingId: plasticScraps.id },
+    { type: "REQUEST_MATCHED", message: "Cartons and Boxes matched with a buyer - transport job created", actorId: producer.id, listingId: cartons.id },
+    { type: "DELIVERED", message: "Organic Compost Waste delivered to buyer - awaiting confirmation", actorId: transportUser.id, listingId: compost.id },
+    { type: "CERTIFIED", message: `Glass Bottles (${glassBottles.quantity}${glassBottles.unit}) received - certificate WTV-CERT-${new Date().getFullYear()}-1001 issued`, actorId: recyclerUser.id, listingId: glassBottles.id }
   ]);
 
-  await Review.create({
-    reviewerCompanyId: companies.buyer.id,
-    reviewedCompanyId: companies.transporter.id,
-    transactionId: transaction.id,
-    rating: 5,
-    comment: "Delivery arrived on time and the material was handled carefully."
-  });
-
   console.log("Seed complete.");
-  console.log("Demo accounts (all use password: demo123):");
-  Object.values(users).forEach((user) => console.log(`  ${user.role.padEnd(12)} ${user.email}`));
+  console.log("Demo accounts (all use password: " + DEMO_PASSWORD + "):");
+  console.log("  ADMIN      admin@wastetovalue.rw");
+  console.log("  PRODUCER   industry@wastetovalue.rw");
+  console.log("  RECYCLER   buyer@wastetovalue.rw");
+  console.log("  TRANSPORT STAFF  transport@wastetovalue.rw");
 
   await sequelize.close();
 }

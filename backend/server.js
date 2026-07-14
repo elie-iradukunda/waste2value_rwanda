@@ -294,6 +294,40 @@ async function backfillLegacyData() {
   `).catch(() => null);
 
   await models.sequelize.query(`
+    UPDATE ${models.TransportJob.getTableName()} job
+    JOIN ${models.WasteListing.getTableName()} listing ON listing.id = job.listingId
+    LEFT JOIN ${models.Company.getTableName()} provider ON provider.id = job.providerCompanyId
+    SET job.providerCompanyId = listing.producerCompanyId
+    WHERE job.providerCompanyId IS NULL
+       OR provider.id IS NULL
+       OR UPPER(provider.type) = 'TRANSPORT'
+  `).catch(() => null);
+
+  await models.sequelize.query(`
+    UPDATE ${models.User.getTableName()} usr
+    JOIN ${models.TransportJob.getTableName()} job ON job.handledById = usr.id AND job.providerCompanyId IS NOT NULL
+    LEFT JOIN ${models.Company.getTableName()} company ON company.id = usr.companyId
+    SET usr.companyId = job.providerCompanyId
+    WHERE UPPER(usr.role) = 'TRANSPORT'
+      AND (usr.companyId IS NULL OR company.id IS NULL OR UPPER(company.type) = 'TRANSPORT')
+  `).catch(() => null);
+
+  await models.sequelize.query(`
+    UPDATE ${models.User.getTableName()} usr
+    JOIN (
+      SELECT id
+      FROM ${models.Company.getTableName()}
+      WHERE UPPER(type) = 'PRODUCER'
+      ORDER BY CASE WHEN UPPER(status) = 'APPROVED' THEN 0 ELSE 1 END, id
+      LIMIT 1
+    ) producer ON 1 = 1
+    LEFT JOIN ${models.Company.getTableName()} company ON company.id = usr.companyId
+    SET usr.companyId = producer.id
+    WHERE UPPER(usr.role) = 'TRANSPORT'
+      AND (usr.companyId IS NULL OR company.id IS NULL OR UPPER(company.type) = 'TRANSPORT')
+  `).catch(() => null);
+
+  await models.sequelize.query(`
     UPDATE ${models.Transaction.getTableName()}
     SET type = COALESCE(NULLIF(type, ''), 'LEGACY_EVENT'),
         message = COALESCE(NULLIF(message, ''), 'Legacy platform activity')

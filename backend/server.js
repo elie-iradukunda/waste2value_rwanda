@@ -70,9 +70,10 @@ async function start() {
   const shouldSyncDatabase = process.env.DB_SYNC === "true" || process.env.NODE_ENV === "production" || Boolean(process.env.RAILWAY_ENVIRONMENT);
   if (shouldSyncDatabase) {
     await models.sequelize.authenticate();
-    await ensurePreSyncCompatibilitySchema();
+    await ensureCompatibilitySchema();
     await models.sequelize.sync();
     await ensureCompatibilitySchema();
+    await backfillLegacyData();
     console.log("MySQL connected and Sequelize models synced. Run `node seed.js` to populate demo data.");
   }
 
@@ -81,48 +82,83 @@ async function start() {
   });
 }
 
-async function ensurePreSyncCompatibilitySchema() {
-  const queryInterface = models.sequelize.getQueryInterface();
-
-  await addMissingColumns(queryInterface, models.Transaction.getTableName(), [
-    ["type", { type: DataTypes.STRING, allowNull: true }],
-    ["message", { type: DataTypes.TEXT, allowNull: true }],
-    ["meta", { type: DataTypes.JSON, allowNull: true }],
-    ["actorId", { type: DataTypes.INTEGER, allowNull: true }],
-    ["listingId", { type: DataTypes.INTEGER, allowNull: true }],
-    ["createdAt", { type: DataTypes.DATE, allowNull: true }]
-  ]);
-}
-
 async function ensureCompatibilitySchema() {
   const queryInterface = models.sequelize.getQueryInterface();
+  const timestamps = [
+    ["createdAt", { type: DataTypes.DATE, allowNull: true }],
+    ["updatedAt", { type: DataTypes.DATE, allowNull: true }]
+  ];
+
+  await addMissingColumns(queryInterface, models.User.getTableName(), [
+    ["name", { type: DataTypes.STRING, allowNull: true }],
+    ["email", { type: DataTypes.STRING, allowNull: true }],
+    ["passwordHash", { type: DataTypes.STRING, allowNull: true }],
+    ["role", { type: DataTypes.STRING, allowNull: true }],
+    ["companyId", { type: DataTypes.INTEGER, allowNull: true }],
+    ...timestamps
+  ]);
+
   await addMissingColumns(queryInterface, models.Company.getTableName(), [
+    ["name", { type: DataTypes.STRING, allowNull: true }],
+    ["type", { type: DataTypes.STRING, allowNull: true }],
+    ["contactEmail", { type: DataTypes.STRING, allowNull: true }],
+    ["phone", { type: DataTypes.STRING, allowNull: true }],
     ["registrationNumber", { type: DataTypes.STRING, allowNull: true }],
     ["businessLocation", { type: DataTypes.STRING, allowNull: true }],
     ["producedMaterials", { type: DataTypes.TEXT, allowNull: true }],
     ["productionDescription", { type: DataTypes.TEXT, allowNull: true }],
     ["rdbDocumentName", { type: DataTypes.STRING, allowNull: true }],
-    ["rdbDocumentDataUrl", { type: DataTypes.TEXT("long"), allowNull: true }]
+    ["rdbDocumentDataUrl", { type: DataTypes.TEXT("long"), allowNull: true }],
+    ["status", { type: DataTypes.STRING, allowNull: true }],
+    ...timestamps
+  ]);
+
+  await addMissingColumns(queryInterface, models.Category.getTableName(), [
+    ["name", { type: DataTypes.STRING, allowNull: true }],
+    ...timestamps
   ]);
 
   await addMissingColumns(queryInterface, models.WasteListing.getTableName(), [
+    ["title", { type: DataTypes.STRING, allowNull: true }],
+    ["description", { type: DataTypes.TEXT, allowNull: true }],
+    ["imageDataUrl", { type: DataTypes.TEXT("long"), allowNull: true }],
     ["imageGallery", { type: DataTypes.TEXT("long"), allowNull: true }],
+    ["quantity", { type: DataTypes.DECIMAL(12, 2), allowNull: true }],
+    ["unit", { type: DataTypes.STRING(12), allowNull: true }],
     ["priceAmount", { type: DataTypes.DECIMAL(12, 2), allowNull: true }],
     ["currency", { type: DataTypes.STRING(8), allowNull: true, defaultValue: "RWF" }],
-    ["priceType", { type: DataTypes.STRING(20), allowNull: true, defaultValue: "PER_UNIT" }]
+    ["priceType", { type: DataTypes.STRING(20), allowNull: true, defaultValue: "PER_UNIT" }],
+    ["location", { type: DataTypes.STRING, allowNull: true }],
+    ["lat", { type: DataTypes.FLOAT, allowNull: true }],
+    ["lng", { type: DataTypes.FLOAT, allowNull: true }],
+    ["status", { type: DataTypes.STRING, allowNull: true }],
+    ["quality", { type: DataTypes.STRING(1), allowNull: true }],
+    ["categoryId", { type: DataTypes.INTEGER, allowNull: true }],
+    ["producerCompanyId", { type: DataTypes.INTEGER, allowNull: true }],
+    ["createdById", { type: DataTypes.INTEGER, allowNull: true }],
+    ...timestamps
   ]);
 
   await addMissingColumns(queryInterface, models.WasteRequest.getTableName(), [
+    ["status", { type: DataTypes.STRING, allowNull: true }],
+    ["message", { type: DataTypes.TEXT, allowNull: true }],
     ["requestedQuantity", { type: DataTypes.DECIMAL(12, 2), allowNull: true }],
     ["requestedUnit", { type: DataTypes.STRING(12), allowNull: true }],
     ["proposedPrice", { type: DataTypes.DECIMAL(12, 2), allowNull: true }],
     ["contactName", { type: DataTypes.STRING, allowNull: true }],
     ["contactPhone", { type: DataTypes.STRING, allowNull: true }],
     ["preferredPickupDate", { type: DataTypes.DATEONLY, allowNull: true }],
-    ["deliveryLocation", { type: DataTypes.STRING, allowNull: true }]
+    ["deliveryLocation", { type: DataTypes.STRING, allowNull: true }],
+    ["decisionReason", { type: DataTypes.TEXT, allowNull: true }],
+    ["listingId", { type: DataTypes.INTEGER, allowNull: true }],
+    ["recyclerCompanyId", { type: DataTypes.INTEGER, allowNull: true }],
+    ["createdById", { type: DataTypes.INTEGER, allowNull: true }],
+    ...timestamps
   ]);
 
   await addMissingColumns(queryInterface, models.TransportJob.getTableName(), [
+    ["status", { type: DataTypes.STRING, allowNull: true }],
+    ["pickupLocation", { type: DataTypes.STRING, allowNull: true }],
     ["dropoffLocation", { type: DataTypes.STRING, allowNull: true }],
     ["driverName", { type: DataTypes.STRING, allowNull: true }],
     ["driverPhone", { type: DataTypes.STRING, allowNull: true }],
@@ -139,16 +175,38 @@ async function ensureCompatibilitySchema() {
     ["receiverName", { type: DataTypes.STRING, allowNull: true }],
     ["receiverPhone", { type: DataTypes.STRING, allowNull: true }],
     ["deliveryNotes", { type: DataTypes.TEXT, allowNull: true }],
-    ["deliveryPhotoDataUrl", { type: DataTypes.TEXT("long"), allowNull: true }]
+    ["deliveryPhotoDataUrl", { type: DataTypes.TEXT("long"), allowNull: true }],
+    ["deliveredAt", { type: DataTypes.DATE, allowNull: true }],
+    ["listingId", { type: DataTypes.INTEGER, allowNull: true }],
+    ["providerCompanyId", { type: DataTypes.INTEGER, allowNull: true }],
+    ["handledById", { type: DataTypes.INTEGER, allowNull: true }],
+    ...timestamps
   ]);
 
   await addMissingColumns(queryInterface, models.Certificate.getTableName(), [
+    ["quantity", { type: DataTypes.DECIMAL(12, 2), allowNull: true }],
+    ["unit", { type: DataTypes.STRING(12), allowNull: true }],
+    ["category", { type: DataTypes.STRING, allowNull: true }],
     ["receiptCondition", { type: DataTypes.STRING(32), allowNull: true }],
     ["receiverName", { type: DataTypes.STRING, allowNull: true }],
     ["receiverPhone", { type: DataTypes.STRING, allowNull: true }],
     ["receiptLocation", { type: DataTypes.STRING, allowNull: true }],
     ["receiptNotes", { type: DataTypes.TEXT, allowNull: true }],
-    ["receiptConfirmedAt", { type: DataTypes.DATE, allowNull: true }]
+    ["receiptConfirmedAt", { type: DataTypes.DATE, allowNull: true }],
+    ["issuedAt", { type: DataTypes.DATE, allowNull: true }],
+    ["listingId", { type: DataTypes.INTEGER, allowNull: true }],
+    ["producerCompanyId", { type: DataTypes.INTEGER, allowNull: true }],
+    ["recyclerCompanyId", { type: DataTypes.INTEGER, allowNull: true }],
+    ["createdAt", { type: DataTypes.DATE, allowNull: true }]
+  ]);
+
+  await addMissingColumns(queryInterface, models.Transaction.getTableName(), [
+    ["type", { type: DataTypes.STRING, allowNull: true }],
+    ["message", { type: DataTypes.TEXT, allowNull: true }],
+    ["meta", { type: DataTypes.JSON, allowNull: true }],
+    ["actorId", { type: DataTypes.INTEGER, allowNull: true }],
+    ["listingId", { type: DataTypes.INTEGER, allowNull: true }],
+    ["createdAt", { type: DataTypes.DATE, allowNull: true }]
   ]);
 }
 
@@ -161,6 +219,53 @@ async function addMissingColumns(queryInterface, tableName, missingColumns) {
       await queryInterface.addColumn(tableName, name, definition);
     }
   }
+}
+
+async function backfillLegacyData() {
+  await models.sequelize.query(`
+    UPDATE ${models.User.getTableName()}
+    SET name = CASE
+      WHEN email = 'admin@wastetovalue.rw' THEN 'Alain Fred NIYOGUSHIMWA'
+      WHEN email = 'industry@wastetovalue.rw' THEN 'Eric Nkurunziza'
+      WHEN email = 'buyer@wastetovalue.rw' THEN 'Grace Mukamana'
+      WHEN email = 'transport@wastetovalue.rw' THEN 'Patrick Habimana'
+      ELSE COALESCE(NULLIF(SUBSTRING_INDEX(email, '@', 1), ''), 'Platform User')
+    END
+    WHERE name IS NULL OR name = ''
+  `).catch(() => null);
+
+  await models.sequelize.query(`
+    UPDATE ${models.Company.getTableName()}
+    SET status = 'PENDING'
+    WHERE status IS NULL OR status = ''
+  `).catch(() => null);
+
+  await models.sequelize.query(`
+    UPDATE ${models.WasteListing.getTableName()}
+    SET currency = COALESCE(NULLIF(currency, ''), 'RWF'),
+        priceType = COALESCE(NULLIF(priceType, ''), 'PER_UNIT'),
+        status = COALESCE(NULLIF(status, ''), 'PENDING_APPROVAL')
+    WHERE currency IS NULL OR currency = '' OR priceType IS NULL OR priceType = '' OR status IS NULL OR status = ''
+  `).catch(() => null);
+
+  await models.sequelize.query(`
+    UPDATE ${models.WasteRequest.getTableName()}
+    SET status = 'PENDING'
+    WHERE status IS NULL OR status = ''
+  `).catch(() => null);
+
+  await models.sequelize.query(`
+    UPDATE ${models.TransportJob.getTableName()}
+    SET status = 'WAITING'
+    WHERE status IS NULL OR status = ''
+  `).catch(() => null);
+
+  await models.sequelize.query(`
+    UPDATE ${models.Transaction.getTableName()}
+    SET type = COALESCE(NULLIF(type, ''), 'LEGACY_EVENT'),
+        message = COALESCE(NULLIF(message, ''), 'Legacy platform activity')
+    WHERE type IS NULL OR type = '' OR message IS NULL OR message = ''
+  `).catch(() => null);
 }
 
 if (require.main === module) {

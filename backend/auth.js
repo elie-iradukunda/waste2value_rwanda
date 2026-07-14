@@ -1,5 +1,6 @@
 const jwt = require("jsonwebtoken");
 const bcrypt = require("bcryptjs");
+const { Op } = require("sequelize");
 const { sequelize, Company, User } = require("./models");
 const { AppError } = require("./workflow.js");
 
@@ -14,16 +15,19 @@ const DEMO_ACCOUNT_EMAILS = new Set([
 ]);
 
 function signToken(user) {
-  return jwt.sign({ id: user.id, email: user.email, name: user.name, role: normalizeRole(user.role), companyId: user.companyId }, JWT_SECRET, { expiresIn: "1d" });
+  return jwt.sign(userPayload(user), JWT_SECRET, { expiresIn: "1d" });
 }
 
-function authenticate(req, res, next) {
+async function authenticate(req, res, next) {
   const header = req.headers.authorization;
   const token = header?.startsWith("Bearer ") ? header.slice(7) : null;
   if (!token) return res.status(401).json({ success: false, message: "Authentication token required" });
   try {
-    req.user = jwt.verify(token, JWT_SECRET);
-    req.user.role = normalizeRole(req.user.role);
+    const decoded = jwt.verify(token, JWT_SECRET);
+    const user = decoded.id ? await User.findByPk(decoded.id) : null;
+    req.user = user
+      ? userPayload(await ensureAccountCompatibility(user, user.email))
+      : { ...decoded, role: normalizeRole(decoded.role) };
     return next();
   } catch (_error) {
     return res.status(401).json({ success: false, message: "Invalid or expired token" });
@@ -56,6 +60,89 @@ function normalizeRole(role) {
     DRIVER: "TRANSPORT"
   };
   return aliases[value] || value;
+}
+
+function normalizeCompanyType(type) {
+  return normalizeRole(type);
+}
+
+function userPayload(user) {
+  return {
+    id: user.id,
+    email: user.email,
+    name: user.name,
+    role: normalizeRole(user.role),
+    companyId: user.companyId || null
+  };
+}
+
+async function ensureAccountCompatibility(user, email) {
+  const role = normalizeRole(user.role);
+  if (role === "ADMIN") {
+    if (user.role !== role) await user.update({ role }).catch(() => null);
+    user.role = role;
+    return user;
+  }
+
+  let company = user.companyId ? await Company.findByPk(user.companyId).catch(() => null) : null;
+  const expectedCompanyType = role === "TRANSPORT" ? "PRODUCER" : role;
+  if (company && normalizeCompanyType(company.type) !== expectedCompanyType) {
+    company = null;
+  }
+
+  if (!company && role !== "TRANSPORT") {
+    company = await Company.findOne({
+      where: {
+        type: { [Op.in]: [role, role.toLowerCase(), role === "PRODUCER" ? "INDUSTRY" : "BUYER"] },
+        contactEmail: email
+      },
+      order: [["id", "ASC"]]
+    }).catch(() => null);
+  }
+
+  if (!company) {
+    company = await Company.findOne({
+      where: { type: role === "TRANSPORT" ? "PRODUCER" : role },
+      order: [["id", "ASC"]]
+    }).catch(() => null);
+  }
+
+  if (!company) {
+    const fallback = fallbackCompanyFor(user, role);
+    company = await Company.create(fallback).catch(() => null);
+  }
+
+  if (company && (user.companyId !== company.id || user.role !== role)) {
+    await user.update({ companyId: company.id, role }).catch(() => null);
+    user.companyId = company.id;
+    user.role = role;
+  }
+
+  return user;
+}
+
+function fallbackCompanyFor(user, role) {
+  if (role === "RECYCLER") {
+    return {
+      name: "Eco Recycle Rwanda",
+      type: "RECYCLER",
+      contactEmail: user.email,
+      phone: "0788000003",
+      businessLocation: "Kigali",
+      status: "APPROVED"
+    };
+  }
+
+  return {
+    name: "Kigali Plastics Ltd",
+    type: "PRODUCER",
+    contactEmail: role === "TRANSPORT" ? "industry@wastetovalue.rw" : user.email,
+    phone: "0788000002",
+    businessLocation: "Kigali",
+    producedMaterials: "Plastic, metal, paper, electronics and recyclable industrial materials",
+    productionDescription: "Legacy approved producer profile restored during production compatibility repair.",
+    status: "APPROVED"
+  };
 }
 
 function cleanText(value, max = 1000) {
@@ -176,7 +263,7 @@ async function register(body) {
     }, { transaction: t });
     const user = await User.create({ name, email: cleanEmail, passwordHash, role: cleanRole, companyId: company.id }, { transaction: t });
     const token = signToken(user);
-    return { token, user: { id: user.id, name: user.name, email: user.email, role: normalizeRole(user.role), companyId: user.companyId } };
+    return { token, user: userPayload(user) };
   });
 }
 
@@ -190,8 +277,9 @@ async function login(body) {
   const valid = await verifyPassword(user, cleanEmail, password);
   if (!valid) throw new AppError(401, "Invalid email or password");
 
-  const token = signToken(user);
-  return { token, user: { id: user.id, name: user.name, email: user.email, role: normalizeRole(user.role), companyId: user.companyId } };
+  const compatibleUser = await ensureAccountCompatibility(user, cleanEmail);
+  const token = signToken(compatibleUser);
+  return { token, user: userPayload(compatibleUser) };
 }
 
 module.exports = { authenticate, authorize, register, login };

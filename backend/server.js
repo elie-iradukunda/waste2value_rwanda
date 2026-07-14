@@ -168,6 +168,7 @@ async function ensureCompatibilitySchema() {
     ["pickupCondition", { type: DataTypes.STRING(32), allowNull: true }],
     ["pickupNotes", { type: DataTypes.TEXT, allowNull: true }],
     ["pickupPhotoDataUrl", { type: DataTypes.TEXT("long"), allowNull: true }],
+    ["pickedUpAt", { type: DataTypes.DATE, allowNull: true }],
     ["deliveryQuantity", { type: DataTypes.DECIMAL(12, 2), allowNull: true }],
     ["deliveryUnit", { type: DataTypes.STRING(12), allowNull: true }],
     ["deliveryCondition", { type: DataTypes.STRING(32), allowNull: true }],

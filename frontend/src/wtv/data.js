@@ -1,5 +1,23 @@
 export const DEMO_PASSWORD = "password123";
 
+export function normalizeRole(role) {
+  const value = String(role || "").trim().toUpperCase().replace(/[\s-]+/g, "_");
+  const aliases = {
+    ADMINISTRATOR: "ADMIN",
+    INDUSTRY: "PRODUCER",
+    WASTE_PRODUCER: "PRODUCER",
+    PRODUCER_COMPANY: "PRODUCER",
+    BUYER: "RECYCLER",
+    RECYCLER_SME: "RECYCLER",
+    SME: "RECYCLER",
+    TRANSPORTER: "TRANSPORT",
+    TRANSPORT_PROVIDER: "TRANSPORT",
+    TRANSPORT_STAFF: "TRANSPORT",
+    DRIVER: "TRANSPORT"
+  };
+  return aliases[value] || value;
+}
+
 export const ROLE_META = {
   ADMIN: {
     key: "admin",
@@ -66,7 +84,7 @@ export const PIPE = [
 ];
 
 export function roleMeta(role) {
-  return ROLE_META[String(role || "").toUpperCase()] || ROLE_META.PRODUCER;
+  return ROLE_META[normalizeRole(role)] || ROLE_META.PRODUCER;
 }
 
 export function listingStage(listing) {

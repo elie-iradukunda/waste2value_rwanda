@@ -23,6 +23,7 @@ function authenticate(req, res, next) {
   if (!token) return res.status(401).json({ success: false, message: "Authentication token required" });
   try {
     req.user = jwt.verify(token, JWT_SECRET);
+    req.user.role = normalizeRole(req.user.role);
     return next();
   } catch (_error) {
     return res.status(401).json({ success: false, message: "Invalid or expired token" });
@@ -40,7 +41,21 @@ function authorize(...roles) {
 }
 
 function normalizeRole(role) {
-  return String(role || "").trim().toUpperCase();
+  const value = String(role || "").trim().toUpperCase().replace(/[\s-]+/g, "_");
+  const aliases = {
+    ADMINISTRATOR: "ADMIN",
+    INDUSTRY: "PRODUCER",
+    WASTE_PRODUCER: "PRODUCER",
+    PRODUCER_COMPANY: "PRODUCER",
+    BUYER: "RECYCLER",
+    RECYCLER_SME: "RECYCLER",
+    SME: "RECYCLER",
+    TRANSPORTER: "TRANSPORT",
+    TRANSPORT_PROVIDER: "TRANSPORT",
+    TRANSPORT_STAFF: "TRANSPORT",
+    DRIVER: "TRANSPORT"
+  };
+  return aliases[value] || value;
 }
 
 function cleanText(value, max = 1000) {

@@ -6,9 +6,10 @@ import AdminPage from "./AdminPage.jsx";
 import ProducerPage from "./ProducerPage.jsx";
 import RecyclerPage from "./RecyclerPage.jsx";
 import TransportPage from "./TransportPage.jsx";
+import { normalizeRole } from "./data.js";
 
 async function loadDashboard(api, role) {
-  switch (String(role || "").toUpperCase()) {
+  switch (normalizeRole(role)) {
     case "ADMIN": {
       const [reports, pendingCompanies, pendingListings, categories] = await Promise.all([
         api.get("/admin/reports"),
@@ -86,7 +87,7 @@ export default function App() {
         storeSession(nextSession);
         return nextSession;
       });
-      const dashboard = await loadDashboard(api, freshUser.role);
+      const dashboard = await loadDashboard(api, normalizeRole(freshUser.role));
       setData(dashboard);
     } catch (err) {
       setError(err.message || "Could not load dashboard data");
@@ -128,7 +129,7 @@ export default function App() {
       storeSession(nextSession);
       setSession(nextSession);
       setData(null);
-      toast(auth.user.role === "RECYCLER"
+      toast(normalizeRole(auth.user.role) === "RECYCLER"
         ? "Recycler account registered. You can request approved materials now."
         : "Producer company registered. Admin approval is required before listing materials.");
     } finally {
@@ -140,7 +141,7 @@ export default function App() {
     return <Login onLogin={login} onRegister={registerCompany} busy={authBusy} />;
   }
 
-  const role = String(session.user.role || "").toUpperCase();
+  const role = normalizeRole(session.user.role);
   const pageProps = { api, data: data || {}, refresh, toast, user: session.user };
 
   return (
@@ -177,5 +178,5 @@ export default function App() {
 }
 
 function normalizeUser(user) {
-  return { ...user, role: String(user?.role || "").toUpperCase() };
+  return { ...user, role: normalizeRole(user?.role) };
 }

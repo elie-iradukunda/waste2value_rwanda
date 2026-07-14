@@ -236,15 +236,37 @@ async function backfillLegacyData() {
 
   await models.sequelize.query(`
     UPDATE ${models.Company.getTableName()}
-    SET type = UPPER(type),
+    SET type = CASE UPPER(type)
+          WHEN 'INDUSTRY' THEN 'PRODUCER'
+          WHEN 'WASTE_PRODUCER' THEN 'PRODUCER'
+          WHEN 'BUYER' THEN 'RECYCLER'
+          WHEN 'SME' THEN 'RECYCLER'
+          WHEN 'RECYCLER_SME' THEN 'RECYCLER'
+          WHEN 'TRANSPORTER' THEN 'TRANSPORT'
+          WHEN 'TRANSPORT_PROVIDER' THEN 'TRANSPORT'
+          ELSE UPPER(type)
+        END,
         status = COALESCE(NULLIF(UPPER(status), ''), 'PENDING')
-    WHERE type <> UPPER(type) OR status IS NULL OR status = '' OR status <> UPPER(status)
+    WHERE type IS NOT NULL OR status IS NULL OR status = '' OR status <> UPPER(status)
   `).catch(() => null);
 
   await models.sequelize.query(`
     UPDATE ${models.User.getTableName()}
-    SET role = UPPER(role)
-    WHERE role IS NOT NULL AND role <> UPPER(role)
+    SET role = CASE UPPER(role)
+          WHEN 'ADMINISTRATOR' THEN 'ADMIN'
+          WHEN 'INDUSTRY' THEN 'PRODUCER'
+          WHEN 'WASTE_PRODUCER' THEN 'PRODUCER'
+          WHEN 'PRODUCER_COMPANY' THEN 'PRODUCER'
+          WHEN 'BUYER' THEN 'RECYCLER'
+          WHEN 'SME' THEN 'RECYCLER'
+          WHEN 'RECYCLER_SME' THEN 'RECYCLER'
+          WHEN 'TRANSPORTER' THEN 'TRANSPORT'
+          WHEN 'TRANSPORT_PROVIDER' THEN 'TRANSPORT'
+          WHEN 'TRANSPORT_STAFF' THEN 'TRANSPORT'
+          WHEN 'DRIVER' THEN 'TRANSPORT'
+          ELSE UPPER(role)
+        END
+    WHERE role IS NOT NULL
   `).catch(() => null);
 
   await models.sequelize.query(`

@@ -236,28 +236,38 @@ async function backfillLegacyData() {
 
   await models.sequelize.query(`
     UPDATE ${models.Company.getTableName()}
-    SET status = 'PENDING'
-    WHERE status IS NULL OR status = ''
+    SET type = UPPER(type),
+        status = COALESCE(NULLIF(UPPER(status), ''), 'PENDING')
+    WHERE type <> UPPER(type) OR status IS NULL OR status = '' OR status <> UPPER(status)
+  `).catch(() => null);
+
+  await models.sequelize.query(`
+    UPDATE ${models.User.getTableName()}
+    SET role = UPPER(role)
+    WHERE role IS NOT NULL AND role <> UPPER(role)
   `).catch(() => null);
 
   await models.sequelize.query(`
     UPDATE ${models.WasteListing.getTableName()}
     SET currency = COALESCE(NULLIF(currency, ''), 'RWF'),
         priceType = COALESCE(NULLIF(priceType, ''), 'PER_UNIT'),
-        status = COALESCE(NULLIF(status, ''), 'PENDING_APPROVAL')
+        unit = COALESCE(NULLIF(UPPER(unit), ''), 'KG'),
+        status = COALESCE(NULLIF(UPPER(status), ''), 'PENDING_APPROVAL'),
+        quality = NULLIF(UPPER(quality), '')
     WHERE currency IS NULL OR currency = '' OR priceType IS NULL OR priceType = '' OR status IS NULL OR status = ''
+       OR unit IS NULL OR unit = '' OR status <> UPPER(status) OR unit <> UPPER(unit) OR quality <> UPPER(quality)
   `).catch(() => null);
 
   await models.sequelize.query(`
     UPDATE ${models.WasteRequest.getTableName()}
-    SET status = 'PENDING'
-    WHERE status IS NULL OR status = ''
+    SET status = COALESCE(NULLIF(UPPER(status), ''), 'PENDING')
+    WHERE status IS NULL OR status = '' OR status <> UPPER(status)
   `).catch(() => null);
 
   await models.sequelize.query(`
     UPDATE ${models.TransportJob.getTableName()}
-    SET status = 'WAITING'
-    WHERE status IS NULL OR status = ''
+    SET status = COALESCE(NULLIF(UPPER(status), ''), 'WAITING')
+    WHERE status IS NULL OR status = '' OR status <> UPPER(status)
   `).catch(() => null);
 
   await models.sequelize.query(`

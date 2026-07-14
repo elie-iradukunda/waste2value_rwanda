@@ -8,7 +8,7 @@ import RecyclerPage from "./RecyclerPage.jsx";
 import TransportPage from "./TransportPage.jsx";
 
 async function loadDashboard(api, role) {
-  switch (role) {
+  switch (String(role || "").toUpperCase()) {
     case "ADMIN": {
       const [reports, pendingCompanies, pendingListings, categories] = await Promise.all([
         api.get("/admin/reports"),
@@ -82,7 +82,7 @@ export default function App() {
       const freshUser = await api.get("/me");
       setSession((current) => {
         if (!current) return current;
-        const nextSession = { ...current, user: freshUser };
+        const nextSession = { ...current, user: normalizeUser(freshUser) };
         storeSession(nextSession);
         return nextSession;
       });
@@ -108,7 +108,7 @@ export default function App() {
 
     try {
       const auth = await apiRequest("/auth/login", { method: "POST", body: credentials });
-      const nextSession = { token: auth.token, user: auth.user };
+      const nextSession = { token: auth.token, user: normalizeUser(auth.user) };
       storeSession(nextSession);
       setSession(nextSession);
       setData(null);
@@ -124,7 +124,7 @@ export default function App() {
 
     try {
       const auth = await apiRequest("/auth/register", { method: "POST", body: details });
-      const nextSession = { token: auth.token, user: auth.user };
+      const nextSession = { token: auth.token, user: normalizeUser(auth.user) };
       storeSession(nextSession);
       setSession(nextSession);
       setData(null);
@@ -140,7 +140,7 @@ export default function App() {
     return <Login onLogin={login} onRegister={registerCompany} busy={authBusy} />;
   }
 
-  const role = session.user.role;
+  const role = String(session.user.role || "").toUpperCase();
   const pageProps = { api, data: data || {}, refresh, toast, user: session.user };
 
   return (
@@ -174,4 +174,8 @@ export default function App() {
       {toastMsg && <div className="toast">{toastMsg}</div>}
     </Shell>
   );
+}
+
+function normalizeUser(user) {
+  return { ...user, role: String(user?.role || "").toUpperCase() };
 }

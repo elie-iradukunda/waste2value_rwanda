@@ -14,7 +14,7 @@ const DEMO_ACCOUNT_EMAILS = new Set([
 ]);
 
 function signToken(user) {
-  return jwt.sign({ id: user.id, email: user.email, name: user.name, role: user.role, companyId: user.companyId }, JWT_SECRET, { expiresIn: "1d" });
+  return jwt.sign({ id: user.id, email: user.email, name: user.name, role: normalizeRole(user.role), companyId: user.companyId }, JWT_SECRET, { expiresIn: "1d" });
 }
 
 function authenticate(req, res, next) {
@@ -31,11 +31,16 @@ function authenticate(req, res, next) {
 
 function authorize(...roles) {
   return (req, res, next) => {
-    if (!roles.includes(req.user?.role)) {
+    if (!roles.includes(normalizeRole(req.user?.role))) {
       return res.status(403).json({ success: false, message: "Permission denied" });
     }
+    req.user.role = normalizeRole(req.user.role);
     return next();
   };
+}
+
+function normalizeRole(role) {
+  return String(role || "").trim().toUpperCase();
 }
 
 function cleanText(value, max = 1000) {
@@ -156,7 +161,7 @@ async function register(body) {
     }, { transaction: t });
     const user = await User.create({ name, email: cleanEmail, passwordHash, role: cleanRole, companyId: company.id }, { transaction: t });
     const token = signToken(user);
-    return { token, user: { id: user.id, name: user.name, email: user.email, role: user.role, companyId: user.companyId } };
+    return { token, user: { id: user.id, name: user.name, email: user.email, role: normalizeRole(user.role), companyId: user.companyId } };
   });
 }
 
@@ -171,7 +176,7 @@ async function login(body) {
   if (!valid) throw new AppError(401, "Invalid email or password");
 
   const token = signToken(user);
-  return { token, user: { id: user.id, name: user.name, email: user.email, role: user.role, companyId: user.companyId } };
+  return { token, user: { id: user.id, name: user.name, email: user.email, role: normalizeRole(user.role), companyId: user.companyId } };
 }
 
 module.exports = { authenticate, authorize, register, login };

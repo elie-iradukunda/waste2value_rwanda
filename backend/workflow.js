@@ -838,9 +838,11 @@ const transportJobInclude = [
 
 const transport = {
   jobs: async (user) => {
-    await assertApprovedCompany(user.companyId);
+    const hasCompany = await hasApprovedCompany(user.companyId);
     return TransportJob.findAll({
-      where: { providerCompanyId: user.companyId },
+      where: hasCompany
+        ? { [Op.or]: [{ providerCompanyId: user.companyId }, { handledById: user.id }] }
+        : { [Op.or]: [{ handledById: user.id }, { handledById: null }, { providerCompanyId: null }] },
       include: transportJobInclude,
       order: [["createdAt", "DESC"]]
     });
@@ -848,21 +850,28 @@ const transport = {
 
   advance: (user, jobId, data = {}) =>
     sequelize.transaction(async (transaction) => {
-      await assertApprovedCompany(user.companyId);
+      const hasCompany = await hasApprovedCompany(user.companyId);
       const job = await TransportJob.findByPk(jobId, {
         include: [{ model: WasteListing, as: "listing" }],
         transaction
       });
       if (!job) notFound("Job not found");
-      if (job.providerCompanyId !== user.companyId) forbid("Job is not assigned to your transport team");
+
+      const canHandle = hasCompany
+        ? job.providerCompanyId === user.companyId || job.handledById === user.id || !job.providerCompanyId
+        : job.handledById === user.id || !job.handledById || !job.providerCompanyId;
+      if (!canHandle) forbid("Job is not assigned to your transport team");
 
       const next = JOB_NEXT[job.status];
       if (!next) bad("Job is already delivered");
       const movementProof = cleanTransportProofPayload(user, data, job, next);
+      const providerCompanyId = hasCompany
+        ? user.companyId
+        : job.providerCompanyId || job.listing?.producerCompanyId || null;
 
       await job.update({
         status: next,
-        providerCompanyId: user.companyId,
+        providerCompanyId,
         handledById: job.handledById || user.id,
         ...movementProof
       }, { transaction });
@@ -884,6 +893,12 @@ const transport = {
       return TransportJob.findByPk(job.id, { include: transportJobInclude, transaction });
     })
 };
+
+async function hasApprovedCompany(companyId) {
+  if (!companyId) return false;
+  const company = await Company.findByPk(companyId).catch(() => null);
+  return Boolean(company && company.status === "APPROVED");
+}
 
 const categories = {
   list: () => Category.findAll({ order: [["name", "ASC"]] })
